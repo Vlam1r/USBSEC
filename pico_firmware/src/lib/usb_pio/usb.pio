@@ -1,0 +1,81 @@
+;
+; Copyright and stuff
+;
+
+.program usb
+; .side_set 1 opt pindirs
+
+.define public diff0 0b01
+.define public diff1 0b10
+
+.define public packet_start 0b1 ; D+ going H is packet start for USB 1.0
+.define public SE0 0b00         ; Single ended zero - end of packet
+.define public SE1 0b11         ; Single ended one - illegal
+
+.define public CYCLES_PER_BIT 4
+
+                ;      TIMINGS:   |----|
+
+public entry_point:
+    set pindirs 0b00
+    wait 1 pin 1
+prepare_out:
+    set pindirs 0b11            ; |---x| Switch to out
+    ;set pins 0b10               ; |x---|
+    nop
+    nop
+    nop
+do_out:
+    out x, 2                    ; |---x| stalls if no data in TX
+    mov pins, x                 ; |x---|
+    jmp !x prepare_in           ; |-x--|
+    jmp do_out                  ; |--x-|
+prepare_in:
+    nop [5]
+    out pins, 0b10
+    set pindirs 0b00            ; |--x-| Switch to in
+    wait 0 pin 1
+    ;nop                   ; |---x|
+    ;nop [3]                            ; |xxxx|
+do_in:
+    mov x, pins                 ; |x---|
+    in x, 2                     ; |-x--|
+    jmp !x prepare_out          ; |--x-|
+    jmp do_in                   ; |---x|
+
+
+% c-sdk {
+
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+#include <stdio.h>
+
+static inline void usb_program_init(PIO pio, uint sm, uint offset, uint pin_dm, uint pin_dp, uint baud) {
+    assert(pin_dp == pin_dm + 1);
+    pio_sm_config c = usb_program_get_default_config(offset); // Precompiled code
+
+    // IO mapping
+    sm_config_set_in_pins(&c, pin_dm);
+    sm_config_set_out_pins(&c, pin_dm, 2); // 1 or 2 ??
+    sm_config_set_set_pins(&c, pin_dm, 2);
+
+    sm_config_set_out_shift(&c, false /*Shift out MSB first*/ , true /*autopull*/, 32);
+    sm_config_set_in_shift(&c, false, true, 32);
+
+    float div = (float)clock_get_hz(clk_sys) / (usb_CYCLES_PER_BIT * baud);
+    printf("%d %f\n", clock_get_hz(clk_sys), div);
+    assert(div == 3);
+    sm_config_set_clkdiv(&c, div);
+    //sm_config_set_clkdiv_int_frac(&c, 62500/4, 0);
+
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_dm, 2, false /*is_out*/);
+    pio_gpio_init(pio, pin_dp);
+    pio_gpio_init(pio, pin_dm);
+
+    // Configure and start SM
+    pio_sm_init(pio, sm, offset + usb_offset_entry_point, &c);
+    pio_sm_set_enabled(pio, sm, true);
+    printf("SM started on %d\n", offset);
+}
+
+%}
