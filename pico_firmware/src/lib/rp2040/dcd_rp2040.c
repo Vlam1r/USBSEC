@@ -244,7 +244,7 @@ static void dcd_rp2040_irq_new(void)
         uint16_t hdr = spi_receive_blocking(data);
         //spi_read_blocking(spi_default, 0, data, 8);
 
-        dcd_edpt_xfer_new(0, 0, data, 18);
+        //dcd_edpt_xfer_new(0, 0, data, 18);
 
         usb_hw_clear->sie_status = USB_SIE_STATUS_SETUP_REC_BITS;
     }

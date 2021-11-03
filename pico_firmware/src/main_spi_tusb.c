@@ -29,11 +29,12 @@ int main() {
 
     messages_config();
 
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
+
     if(is_master()) {
         // master
 
         //spi_write_blocking(spi_default, data, 8);
-        gpio_put(PICO_DEFAULT_LED_PIN, 1);
         dcd_init_new(0);
         dcd_int_enable_new(0);
 
@@ -48,7 +49,6 @@ int main() {
 
         while(true) {
             uint16_t hdr = spi_receive_blocking(data);
-            gpio_put(PICO_DEFAULT_LED_PIN, 1);
             //hcd_setup_send(0, 0, data);
             uint8_t arr[18] = {0x12, 0x01, 0x00, 0x01,0xff,0xff,0xff,0x40,
                                0x47,0x05,0x80,0x00,0x01,0x00,0x00,0x00,
@@ -56,6 +56,7 @@ int main() {
 
             spi_send_blocking(arr, 18, 2);
 
+            gpio_put(PICO_DEFAULT_LED_PIN, 0);
         }
 
     }
