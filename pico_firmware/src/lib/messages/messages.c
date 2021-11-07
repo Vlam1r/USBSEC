@@ -4,21 +4,29 @@
 
 #include "messages.h"
 
-#define BUGGER_LENGTH 1024
-uint8_t buffer[BUGGER_LENGTH];
+static void print_arr_hex(const uint8_t *data, int len) {
+    for (int i = 0; i < len; i++) {
+        printf("0x%02x ", data[i]);
+        if (i % 8 == 7) {
+            printf("\n");
+        }
+    }
+    if (len % 8 != 0) {
+        printf("\n");
+    }
+}
 
-void messages_config(void)
-{
+void messages_config(void) {
     gpio_init(GPIO_MASTER_SELECT_PIN);
     gpio_set_dir(GPIO_MASTER_SELECT_PIN, GPIO_IN);
 
     gpio_init(GPIO_SLAVE_IRQ_PIN);
     gpio_set_dir(GPIO_SLAVE_IRQ_PIN, is_master() ? GPIO_IN : GPIO_OUT);
-    if(!is_master()) {
+    if (!is_master()) {
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
     }
 
-    if(is_master()) {
+    if (is_master()) {
         printf("--------\n MASTER \n--------\n");
     } else {
         printf("-------\n SLAVE \n-------\n");
@@ -32,49 +40,65 @@ void messages_config(void)
     gpio_set_function(PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI);
 
     // picotool binary information
-    bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI))
+    bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN,
+                               PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI))
 
 }
 
-bool is_master(void)
-{
+bool is_master(void) {
     return gpio_get(GPIO_MASTER_SELECT_PIN);
 }
 
-void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t flag)
-{
+void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t flag) {
     assert(len < 255);
-    if(!is_master()) {
+    if (!is_master()) {
         printf("Setting irq pin high\n");
         gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
     }
-    spi_write_blocking(spi_default, &len, 1);
+    uint8_t hdr[2] = {len, flag};
+    spi_write_blocking(spi_default, hdr, 2);
     spi_write_blocking(spi_default, data, len);
-    if(!is_master()) {
+    if(flag & DEBUG_PRINT_AS_HEX) {
+        printf("Sent data:\n");
+        print_arr_hex(data, len);
+    }
+    if(flag & DEBUG_PRINT_AS_STRING) {
+        printf((char *) data);
+        printf("\n");
+    }
+    if (!is_master()) {
         printf("Setting irq pin low\n");
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
     }
 }
 
-uint8_t spi_receive_blocking(uint8_t *data)
-{
-    uint8_t hdr = 0;
+uint8_t spi_receive_blocking(uint8_t *data) {
+    uint8_t len = 0;
+    uint8_t flag = 0;
     if (is_master()) {
-        printf("Waiting for irq pin\n");
-        while(gpio_get(GPIO_SLAVE_IRQ_PIN) == 0)
+        //printf("Waiting for irq pin\n");
+        while (gpio_get(GPIO_SLAVE_IRQ_PIN) == 0)
             tight_loop_contents();
-        printf("Irq pin high. Proceeding...\n");
+        //printf("Irq pin high. Proceeding...\n");
     } else
         printf("Waiting for header\n");
-    while(hdr == 0)
-        spi_read_blocking(spi_default, 0, &hdr, 1);
-    printf("Received length %d\n", hdr);
-    assert(hdr < BUGGER_LENGTH);
-    spi_read_blocking(spi_default, 0, data, hdr & 0xFF);
-    printf("Received data:\n");
-    for(int i=0;i<hdr;i++){
-        printf("0x%x ", data[i]);
+    while (len == 0)
+        spi_read_blocking(spi_default, 0, &len, 1);
+    spi_read_blocking(spi_default, 0, &flag, 1);
+    if(is_master()) sleep_us(1); // I <3 when a 1 microsecond sleep makes an algorithm work
+    spi_read_blocking(spi_default, 0, data, len & 0xFF);
+    if(flag & DEBUG_PRINT_AS_HEX) {
+        printf("Received length %d\n", len);
+        printf("Received data:\n");
+        print_arr_hex(data, len);
     }
-    printf("\n");
-    return hdr;
+    if(flag & DEBUG_PRINT_AS_STRING) {
+        printf((char *) data);
+        printf("\n");
+    }
+    return (flag & USB_DATA) ? len : 0;
+}
+
+void spi_send_string(char *data){
+    spi_send_blocking((uint8_t *) data, strlen(data), DEBUG_PRINT_AS_STRING);
 }

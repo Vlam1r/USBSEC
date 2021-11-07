@@ -30,6 +30,15 @@
 #include "pico.h"
 #include "rp2040_usb.h"
 
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
+//#include "osal/osal.h"
+
+//#include "host/hcd.h"
+//#include "host/usbh.h"
+
+#define ROOT_PORT 0
 
 //--------------------------------------------------------------------+
 // Low level rp2040 controller functions
@@ -53,7 +62,9 @@ enum {
                   USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS
 };
 
-static struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr)
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
+
+struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr)
 {
   uint8_t num = tu_edpt_number(ep_addr);
   if ( num == 0 ) return &epx;
@@ -76,7 +87,6 @@ static bool need_pre(uint8_t dev_addr)
 {
     // If this device is different to the speed of the root device
     // (i.e. is a low speed device on a full speed hub) then need pre
-    //return hcd_port_speed_get(0) != tuh_speed_get(dev_addr); TODO
     return false;
 }
 
@@ -87,13 +97,13 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result)
     uint8_t ep_addr = ep->ep_addr;
     uint xferred_len = ep->xferred_len;
     hw_endpoint_reset_transfer(ep);
-    //hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
+    hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
 
 static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep)
 {
     usb_hw_clear->buf_status = bit;
-    bool done = hw_endpoint_xfer_continue(ep);
+    bool done = _hw_endpoint_xfer_continue(ep);
     if (done)
     {
         hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
@@ -165,22 +175,38 @@ static void hw_trans_complete(void)
   }
 }
 
-static void hcd_rp2040_irq(void)
+static void hcd_rp2040_irq_new(void)
 {
     uint32_t status = usb_hw->ints;
     uint32_t handled = 0;
 
+    spi_send_string("Received new interrupt:");
+    uint8_t trim = status;
+    spi_send_blocking(&trim, 1, DEBUG_PRINT_AS_HEX);
+
     if (status & USB_INTS_HOST_CONN_DIS_BITS)
     {
         handled |= USB_INTS_HOST_CONN_DIS_BITS;
+
+        tusb_desc_endpoint_t ep0_desc = // Todo is needed??
+                {
+                        .bLength          = sizeof(tusb_desc_endpoint_t),
+                        .bDescriptorType  = TUSB_DESC_ENDPOINT,
+                        .bEndpointAddress = 0,
+                        .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
+                        .wMaxPacketSize   = { .size = 64 },
+                        .bInterval        = 0
+                };
+
+        hcd_edpt_open(0, 0, &ep0_desc);
         
         if (dev_speed())
         {
-            //hcd_event_device_attach(ROOT_PORT, true);
+            hcd_event_device_attach(ROOT_PORT, true);
         }
         else
         {
-            //hcd_event_device_remove(ROOT_PORT, true);
+            hcd_event_device_remove(ROOT_PORT, true);
         }
 
         // Clear speed change interrupt
@@ -351,7 +377,7 @@ bool hcd_init(uint8_t rhport)
     // Force VBUS detect to always present, for now we assume vbus is always provided (without using VBUS En)
     usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 
-    irq_set_exclusive_handler(USBCTRL_IRQ, hcd_rp2040_irq);
+    irq_set_exclusive_handler(USBCTRL_IRQ, hcd_rp2040_irq_new);
 
     // clear epx and interrupt eps
     memset(&ep_pool, 0, sizeof(ep_pool));
@@ -477,7 +503,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     // sie ctrl registers. Otherwise interrupt ep registers should
     // already be configured
     if (ep == &epx) {
-        hw_endpoint_xfer_start(ep, buffer, buflen);
+        _hw_endpoint_xfer_start(ep, buffer, buflen);
 
         // That has set up buffer control, endpoint control etc
         // for host we have to initiate the transfer
@@ -491,7 +517,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
         usb_hw->sie_ctrl = flags;
     }else
     {
-      hw_endpoint_xfer_start(ep, buffer, buflen);
+      _hw_endpoint_xfer_start(ep, buffer, buflen);
     }
 
     return true;

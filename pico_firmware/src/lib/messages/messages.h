@@ -9,14 +9,22 @@
 #include "hardware/spi.h"
 #include "pico/binary_info.h"
 #include <stdio.h>
+#include <string.h>
 
 #define GPIO_MASTER_SELECT_PIN 0
 #define GPIO_SLAVE_IRQ_PIN 14
-#define SPI_BAUDRATE 8*1000*1000 // 9MHz is too much at 144MHz clock
+#define SPI_BAUDRATE 6*1000*1000 // 8MHz is too much at 144MHz clock
+
+typedef enum {
+    USB_DATA = 0x1,
+    DEBUG_PRINT_AS_STRING = 0x2,
+    DEBUG_PRINT_AS_HEX = 0x4
+} msg_type;
 
 void messages_config(void);
 void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t flag);
 uint8_t spi_receive_blocking(uint8_t *data);
+void spi_send_string(char *data);
 bool is_master(void);
 
 #endif //PICO_FIRMWARE_MESSAGES_H

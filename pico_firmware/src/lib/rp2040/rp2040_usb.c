@@ -32,6 +32,11 @@
 #include <stdlib.h>
 #include "rp2040_usb.h"
 
+// Direction strings for debug
+const char *ep_dir_string[] = {
+        "out",
+        "in",
+};
 
 static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
     // todo add critsec as necessary to prevent issues between worker and IRQ...
@@ -42,12 +47,11 @@ static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
 static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
 static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 
-
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 
-void rp2040_usb_init_new(void)
+void rp2040_usb_init(void)
 {
   // Reset usb controller
   reset_block(RESETS_RESET_USBCTRL_BITS);
@@ -61,7 +65,7 @@ void rp2040_usb_init_new(void)
   usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;
 }
 
-void hw_endpoint_reset_transfer_new(struct hw_endpoint *ep)
+void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
 {
   ep->active = false;
   ep->remaining_len = 0;
@@ -69,7 +73,7 @@ void hw_endpoint_reset_transfer_new(struct hw_endpoint *ep)
   ep->user_buf = 0;
 }
 
-void _hw_endpoint_buffer_control_update32_new(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
+void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
     uint32_t value = 0;
     if (and_mask) {
         value = *ep->buffer_control & and_mask;
@@ -247,39 +251,7 @@ static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
   // sync buffer 1 if double buffered
   if ( (*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS )
   {
-    if (buf0_bytes == ep->wMaxPacketSize)
-    {
-      // sync buffer 1 if not short packet
-      sync_ep_buffer(ep, 1);
-    }else
-    {
-      // short packet on buffer 0
-      // TODO couldn't figure out how to handle this case which happen with net_lwip_webserver example
-      // At this time (currently trigger per 2 buffer), the buffer1 is probably filled with data from
-      // the next transfer (not current one). For now we disable double buffered for device OUT
-      // NOTE this could happen to Host IN
-#if 0
-      uint8_t const ep_num = tu_edpt_number(ep->ep_addr);
-      uint8_t const dir =  (uint8_t) tu_edpt_dir(ep->ep_addr);
-      uint8_t const ep_id = 2*ep_num + (dir ? 0 : 1);
-
-      // abort queued transfer on buffer 1
-      usb_hw->abort |= TU_BIT(ep_id);
-
-      while ( !(usb_hw->abort_done & TU_BIT(ep_id)) ) {}
-
-      uint32_t ep_ctrl = *ep->endpoint_control;
-      ep_ctrl &= ~(EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER);
-      ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
-
-      _hw_endpoint_buffer_control_set_value32(ep, 0);
-
-      usb_hw->abort &= ~TU_BIT(ep_id);
-
-      TU_LOG(3, "----SHORT PACKET buffer0 on EP %02X:\r\n", ep->ep_addr);
-      TU_LOG(3, "  BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
-#endif
-    }
+    panic("Double buffering unsupported");
   }
 }
 

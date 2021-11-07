@@ -24,15 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "tusb_option.h"
-
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_RP2040
+//#include "tusb_option.h"
 
 #include "pico.h"
 #include "rp2040_usb.h"
-
-
-bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
 // Current implementation force vbus detection as always present, causing device think it is always plugged into host.
 // Therefore it cannot detect disconnect event, mistaken it as suspend.
@@ -67,7 +62,8 @@ static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
 static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
 {
   // size must be multiple of 64
-  uint16_t size = ep->wMaxPacketSize + 64 - (ep->wMaxPacketSize % 64 == 0 ? 64 : ep->wMaxPacketSize % 64);
+  uint16_t size = (ep->wMaxPacketSize + 63) / 64 * 64;
+
   // double buffered Bulk endpoint
   if ( transfer_type == TUSB_XFER_BULK )
   {
@@ -165,7 +161,7 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
 static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
 {
     struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-    hw_endpoint_xfer_start(ep, buffer, total_bytes);
+    _hw_endpoint_xfer_start(ep, buffer, total_bytes);
 }
 
 static void hw_handle_buff_status(void)
@@ -184,11 +180,11 @@ static void hw_handle_buff_status(void)
             struct hw_endpoint *ep = hw_endpoint_get_by_num(i >> 1u, !(i & 1u));
 
             // Continue xfer
-            bool done = hw_endpoint_xfer_continue(ep);
+            bool done = _hw_endpoint_xfer_continue(ep);
             if (done)
             {
                 // Notify
-                //dcd_event_xfer_complete(0, ep->ep_addr, ep->xferred_len, XFER_RESULT_SUCCESS, true);
+                dcd_event_xfer_complete_new(0, ep->ep_addr, ep->xferred_len, XFER_RESULT_SUCCESS, true);
                 hw_endpoint_reset_transfer(ep);
             }
             remaining_buffers &= ~bit;
@@ -228,6 +224,9 @@ static void dcd_rp2040_irq_new(void)
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
 
+    uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
+    spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
+
     if (status & USB_INTS_SETUP_REQ_BITS)
     {
         handled |= USB_INTS_SETUP_REQ_BITS;
@@ -236,16 +235,8 @@ static void dcd_rp2040_irq_new(void)
         // reset pid to both 1 (data and ack)
         reset_ep0_pid();
 
-        // Pass setup packet
-        //spi_write_blocking(spi_default, setup, 8);
-        spi_send_blocking(setup, 8, 1);
-        //Respond to packet
-        uint8_t data[100];
-        uint16_t hdr = spi_receive_blocking(data);
-        //spi_read_blocking(spi_default, 0, data, 8);
-
-        //dcd_edpt_xfer_new(0, 0, data, 18);
-
+        // Pass setup packet to tiny usb
+        dcd_event_setup_received_new(0, setup, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_SETUP_REC_BITS;
     }
 
@@ -286,11 +277,6 @@ static void dcd_rp2040_irq_new(void)
         reset_non_control_endpoints();
         //dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
-
-#if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
-        // Only run enumeration walk-around if pull up is enabled
-        if ( usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS ) rp2040_usb_device_enumeration_fix();
-#endif
     }
 
     /* Note from pico datasheet 4.1.2.6.4 (v1.2)
@@ -332,15 +318,14 @@ static void dcd_rp2040_irq_new(void)
 /* Controller API
  *------------------------------------------------------------------*/
 
-
 // connect by enabling internal pull-up resistor on D+/D-
-void dcd_connect_new(uint8_t rhport)
+void dcd_connect(uint8_t rhport)
 {
     (void) rhport;
     usb_hw_set->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
 }
 
-void dcd_init_new(uint8_t rhport)
+void dcd_init_new (uint8_t rhport)
 {
   assert(rhport == 0);
 
@@ -374,7 +359,7 @@ void dcd_init_new(uint8_t rhport)
                      USB_INTS_DEV_SUSPEND_BITS | USB_INTS_DEV_RESUME_FROM_HOST_BITS |
                      (FORCE_VBUS_DETECT ? 0 : USB_INTS_DEV_CONN_DIS_BITS);
 
-  dcd_connect_new(rhport);
+  dcd_connect(rhport);
 }
 
 void dcd_int_enable_new(uint8_t rhport)
@@ -383,41 +368,18 @@ void dcd_int_enable_new(uint8_t rhport)
     irq_set_enabled(USBCTRL_IRQ, true);
 }
 
-void dcd_int_disable_new(uint8_t rhport)
-{
-    assert(rhport == 0);
-    irq_set_enabled(USBCTRL_IRQ, false);
-}
-
-void dcd_set_address_new (uint8_t rhport, uint8_t dev_addr)
-{
-  assert(rhport == 0);
-
-  // Can't set device address in hardware until status xfer has complete
-  // Send 0len complete response on EP0 IN
-  hw_endpoint_xfer(0x80, NULL, 0);
-}
-
-void dcd_remote_wakeup_new(uint8_t rhport)
-{
-    pico_info("dcd_remote_wakeup %d\n", rhport);
-    assert(rhport == 0);
-    usb_hw_set->sie_ctrl = USB_SIE_CTRL_RESUME_BITS;
-}
-
 // disconnect by disabling internal pull-up resistor on D+/D-
-void dcd_disconnect_new(uint8_t rhport)
+void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
   usb_hw_clear->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
 }
 
-
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
 
-void dcd_edpt0_status_complete_new(uint8_t rhport, tusb_control_request_t const * request)
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
 {
   (void) rhport;
 
@@ -496,5 +458,3 @@ void dcd_int_handler_new(uint8_t rhport)
   (void) rhport;
   dcd_rp2040_irq_new();
 }
-
-#endif
