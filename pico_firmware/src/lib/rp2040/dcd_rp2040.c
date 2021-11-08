@@ -180,7 +180,7 @@ static void hw_handle_buff_status(void)
             struct hw_endpoint *ep = hw_endpoint_get_by_num(i >> 1u, !(i & 1u));
 
             // Continue xfer
-            bool done = _hw_endpoint_xfer_continue(ep);
+            bool done = hw_endpoint_xfer_continue(ep);
             if (done)
             {
                 // Notify
@@ -223,15 +223,16 @@ static void dcd_rp2040_irq_new(void)
 {
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
-
-    uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
-    spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
+    if(true && status != USB_INTS_BUS_RESET_BITS && status != USB_INTS_DEV_SUSPEND_BITS){//  && status != 0x10000) {
+        uint8_t data[4] = {status == USB_INTS_SETUP_REQ_BITS, status >> 16, status >> 8, status};
+        //spi_send_blocking(data, 1, DEBUG_PRINT_AS_HEX);
+    }
 
     if (status & USB_INTS_SETUP_REQ_BITS)
     {
         handled |= USB_INTS_SETUP_REQ_BITS;
         uint8_t const *setup = (uint8_t const *)&usb_dpram->setup_packet;
-
+        spi_send_blocking(&setup[0], 4, USB_DATA | DEBUG_PRINT_AS_HEX);
         // reset pid to both 1 (data and ack)
         reset_ep0_pid();
 

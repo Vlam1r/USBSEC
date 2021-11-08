@@ -58,7 +58,7 @@
 void rp2040_usb_init(void);
 
 void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len);
-bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep);
+bool hw_endpoint_xfer_continue(struct hw_endpoint *ep);
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
 
 void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);

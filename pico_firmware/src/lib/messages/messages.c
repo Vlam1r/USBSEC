@@ -1,8 +1,11 @@
+#include <sys/cdefs.h>
 //
 // Created by vlamir on 11/2/21.
 //
 
 #include "messages.h"
+
+static const uint8_t *bugger;
 
 static void print_arr_hex(const uint8_t *data, int len) {
     for (int i = 0; i < len; i++) {
@@ -16,7 +19,16 @@ static void print_arr_hex(const uint8_t *data, int len) {
     }
 }
 
+_Noreturn static void core1_main() {
+    while(true) {
+        uint32_t hdr = multicore_fifo_pop_blocking();
+        spi_send_blocking(bugger, hdr >> 8, hdr & 0xFF);
+    }
+}
+
 void messages_config(void) {
+    multicore_launch_core1(core1_main);
+
     gpio_init(GPIO_MASTER_SELECT_PIN);
     gpio_set_dir(GPIO_MASTER_SELECT_PIN, GPIO_IN);
 
@@ -101,4 +113,9 @@ uint8_t spi_receive_blocking(uint8_t *data) {
 
 void spi_send_string(char *data){
     spi_send_blocking((uint8_t *) data, strlen(data), DEBUG_PRINT_AS_STRING);
+}
+
+void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag) {
+    bugger = data;
+    multicore_fifo_push_blocking((len << 8) | flag);
 }

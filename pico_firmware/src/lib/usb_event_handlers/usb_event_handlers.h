@@ -8,6 +8,8 @@
 #include <pico/stdlib.h>
 #include <string.h>
 #include "../messages/messages.h"
+#include "tusb_common.h"
+#include "tusb_types.h"
 
 typedef struct hw_endpoint
 {
@@ -85,6 +87,7 @@ extern bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup
 
 void dcd_event_bus_reset (uint8_t rhport, int speed, bool in_isr);
 extern void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr);
+bool dcd_edpt_open_new (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt);
 
 extern hw_endpoint_t *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr);
 
@@ -99,5 +102,8 @@ bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16
 void dcd_init_new (uint8_t rhport);
 void dcd_int_enable_new(uint8_t rhport);
 
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request);
+
+extern uint8_t bugger[1000];
 
 #endif //PICO_FIRMWARE_USB_EVENT_HANDLERS_H

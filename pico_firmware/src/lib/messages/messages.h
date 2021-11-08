@@ -8,6 +8,7 @@
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
 #include "pico/binary_info.h"
+#include "pico/multicore.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -17,8 +18,9 @@
 
 typedef enum {
     USB_DATA = 0x1,
-    DEBUG_PRINT_AS_STRING = 0x2,
-    DEBUG_PRINT_AS_HEX = 0x4
+    SETUP_DATA = 0x2,
+    DEBUG_PRINT_AS_STRING = 0x4,
+    DEBUG_PRINT_AS_HEX = 0x8
 } msg_type;
 
 void messages_config(void);
@@ -26,5 +28,6 @@ void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t flag);
 uint8_t spi_receive_blocking(uint8_t *data);
 void spi_send_string(char *data);
 bool is_master(void);
+void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag);
 
 #endif //PICO_FIRMWARE_MESSAGES_H

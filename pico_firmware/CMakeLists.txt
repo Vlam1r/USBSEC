@@ -30,7 +30,7 @@ add_executable(pico_firmware
 #        src/lib/usb_phy/usb_host.h
         src/lib/rp2040/dcd_rp2040.c
         src/lib/rp2040/hcd_rp2040.c
-#        src/lib/rp2040/rp2040_usb.c
+        src/lib/rp2040/rp2040_usb.c
         src/lib/usb_event_handlers/usb_event_handlers.c
         )
 
@@ -40,10 +40,12 @@ pico_generate_pio_header(pico_firmware ${CMAKE_CURRENT_LIST_DIR}/src/lib/usb_pio
 
 target_link_libraries(pico_firmware
         pico_stdlib
+        pico_multicore
         hardware_resets
         hardware_irq
         hardware_pio
-        hardware_spi)
+        hardware_spi
+        )
 
 pico_enable_stdio_usb(pico_firmware 1)
 pico_enable_stdio_uart(pico_firmware 0)

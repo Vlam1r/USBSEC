@@ -29,14 +29,7 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_RP2040
 
-#include <stdlib.h>
 #include "rp2040_usb.h"
-
-// Direction strings for debug
-const char *ep_dir_string[] = {
-        "out",
-        "in",
-};
 
 static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
     // todo add critsec as necessary to prevent issues between worker and IRQ...
@@ -50,7 +43,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-
+/*
 void rp2040_usb_init(void)
 {
   // Reset usb controller
@@ -102,7 +95,7 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
     }
     *ep->buffer_control = value;
 }
-
+*/
 // prepare buffer, return buffer control
 static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
 {
@@ -260,10 +253,11 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
 {
   _hw_endpoint_lock_update(ep, 1);
   // Part way through a transfer
-  if (!ep->active)
+  /*if (!ep->active) TODO IS THIS OK?
   {
+      return false;
     panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
-  }
+  }*/
 
   // Update EP struct from hardware state
   _hw_endpoint_xfer_sync(ep);

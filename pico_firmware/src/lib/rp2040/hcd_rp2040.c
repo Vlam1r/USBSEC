@@ -103,7 +103,7 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result)
 static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep)
 {
     usb_hw_clear->buf_status = bit;
-    bool done = _hw_endpoint_xfer_continue(ep);
+    bool done = hw_endpoint_xfer_continue(ep);
     if (done)
     {
         hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
@@ -180,15 +180,15 @@ static void hcd_rp2040_irq_new(void)
     uint32_t status = usb_hw->ints;
     uint32_t handled = 0;
 
-    spi_send_string("Received new interrupt:");
-    uint8_t trim = status;
-    spi_send_blocking(&trim, 1, DEBUG_PRINT_AS_HEX);
+    uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
+    //spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
+
 
     if (status & USB_INTS_HOST_CONN_DIS_BITS)
     {
         handled |= USB_INTS_HOST_CONN_DIS_BITS;
 
-        tusb_desc_endpoint_t ep0_desc = // Todo is needed??
+        /*tusb_desc_endpoint_t ep0_desc = // Todo is needed??
                 {
                         .bLength          = sizeof(tusb_desc_endpoint_t),
                         .bDescriptorType  = TUSB_DESC_ENDPOINT,
@@ -198,7 +198,7 @@ static void hcd_rp2040_irq_new(void)
                         .bInterval        = 0
                 };
 
-        hcd_edpt_open(0, 0, &ep0_desc);
+        hcd_edpt_open(0, 0, &ep0_desc);*/
         
         if (dev_speed())
         {
