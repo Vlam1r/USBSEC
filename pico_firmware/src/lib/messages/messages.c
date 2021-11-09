@@ -91,20 +91,30 @@ void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t new_flag) {
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
     }
 }
-
+static int led = 1;
 uint8_t spi_receive_blocking(uint8_t *data) {
     uint8_t len = 0;
     if (is_master()) {
         //printf("Waiting for irq pin\n");
-        while (gpio_get(GPIO_SLAVE_IRQ_PIN) == 0)
+        while (gpio_get(GPIO_SLAVE_IRQ_PIN) == 0) {
+            /*led = 1-led;
+            gpio_put(PICO_DEFAULT_LED_PIN,led);
+            sleep_ms(100);*/
             tight_loop_contents();
+        }
         //printf("Irq pin high. Proceeding...\n");
     } else
         printf("Waiting for header\n");
-    while (len == 0)
+    while (len == 0) {
+        /*led = 1-led;
+        gpio_put(PICO_DEFAULT_LED_PIN,led);
+        sleep_ms(100);*/
         spi_read_blocking(spi_default, 0, &len, 1);
+    }
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
     spi_read_blocking(spi_default, 0, &flag, 1);
-    if(is_master()) sleep_us(1); // I <3 when a 1 microsecond sleep makes an algorithm work
+    for(int i=0;i<1000;i++) tight_loop_contents();
+    //if(is_master()) sleep_us(1); // I <3 when a 1 microsecond sleep makes an algorithm work
     spi_read_blocking(spi_default, 0, data, len & 0xFF);
     if(flag & DEBUG_PRINT_AS_HEX) {
         printf("Received length %d\n", len);

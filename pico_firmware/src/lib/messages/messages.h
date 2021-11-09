@@ -14,7 +14,7 @@
 
 #define GPIO_MASTER_SELECT_PIN 0
 #define GPIO_SLAVE_IRQ_PIN 14
-#define SPI_BAUDRATE 6*1000*1000 // 8MHz is too much at 144MHz clock
+#define SPI_BAUDRATE (int)(6*1000*1000) // 8MHz is too much at 144MHz clock
 
 typedef enum {
     USB_DATA = 0x1,

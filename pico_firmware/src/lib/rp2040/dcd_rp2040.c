@@ -219,7 +219,7 @@ static void reset_non_control_endpoints(void)
   next_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
-int led = 1;
+static uint8_t led = 1;
 static void dcd_rp2040_irq_new(void)
 {
     uint32_t const status = usb_hw->ints;
@@ -233,11 +233,9 @@ static void dcd_rp2040_irq_new(void)
     {
         handled |= USB_INTS_SETUP_REQ_BITS;
         uint8_t const *setup = (uint8_t const *)&usb_dpram->setup_packet;
-        //spi_send_blocking(&setup[0], 4, SETUP_DATA | DEBUG_PRINT_AS_HEX);
         // reset pid to both 1 (data and ack)
         reset_ep0_pid();
-        led = 1-led;
-        gpio_put(PICO_DEFAULT_LED_PIN, led);
+        //spi_send_blocking(setup, 4, SETUP_DATA | DEBUG_PRINT_AS_HEX);
         // Pass setup packet to tiny usb
         dcd_event_setup_received_new(0, setup, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_SETUP_REC_BITS;
