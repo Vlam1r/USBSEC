@@ -79,11 +79,21 @@ _Noreturn int main() {
             //{0x80, 0x6, 0x0, 0x2, 0x0, 0x0, 0x2c, 0x0};
             //{0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x40, 0x0}; //wLength = 64
             //define_setup_packet(setup);
+            slavework();
         }
 
-        slavework();
 
         while(true) {
+            spi_receive_blocking(data);
+            //printf("flag: %d", get_flag());
+            if(get_flag() & SETUP_DATA) {
+                gpio_put(PICO_DEFAULT_LED_PIN,0);
+                uint8_t arr[18] = {0x12, 0x01, 0x10, 0x02, 0x00, 0x00, 0x00, 0x40,
+                                   0x81, 0x07, 0x81, 0x55, 0x00, 0x01, 0x01, 0x02,
+                                   0x03, 0x01};
+                sleep_ms(5);
+                spi_send_blocking(arr, 18, USB_DATA);
+            }
             /*uint8_t len = spi_receive_blocking(data);
             //spi_send_string("test");
             //spi_send_blocking(data, len, DEBUG_PRINT_AS_HEX);

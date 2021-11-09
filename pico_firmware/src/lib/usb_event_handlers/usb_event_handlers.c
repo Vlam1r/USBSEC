@@ -3,6 +3,7 @@
 //
 
 #include <hardware/structs/usb.h>
+#include <hardware/irq.h>
 #include "usb_event_handlers.h"
 
 static uint8_t setup_packet[8];
@@ -113,27 +114,38 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const * setup, bool in
             };
 
     dcd_edpt_open_new(0, &ep0_desc);*/
-    if(level == 0) {
-        dcd_edpt_xfer_new(0, 0x80, arr, 18);
-        dcd_edpt_xfer_new(rhport, 0x00, NULL, 0);
-        level++;
-    } else if (level == 1) {
-        //REPLY TO SET_ADDRESS
+
+    if(((tusb_control_request_t *)setup)->bRequest == 0x5 /*SET ADDRESS*/) {
         dcd_edpt_xfer_new(rhport, 0x80, NULL, 0); //send empty
+        level++;
+        return;
+    }
+    //gpio_put(PICO_DEFAULT_LED_PIN,1);
+    if(level == 0) {
+        //dcd_edpt_xfer_new(0, 0x80, arr, 18);
         //dcd_edpt_xfer_new(rhport, 0x00, NULL, 0);
-        level++;
-    } else if (level == 2){
-        level++;
-        dcd_edpt_xfer_new(0, 0x80, arr, 18);
+        //irq_set_enabled(USBCTRL_IRQ, false);
+        spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
+        //gpio_put(PICO_DEFAULT_LED_PIN,0);
+        int len = spi_receive_blocking(bugger);
+        dcd_edpt_xfer_new(0, 0x80, bugger, len);
+        //irq_set_enabled(USBCTRL_IRQ, true);
         dcd_edpt_xfer_new(rhport, 0x00, NULL, 0);
+        level++;
+    } else if (level == 1){
+        level++;
+        //dcd_edpt_xfer_new(0, 0x80, arr, 18);
+        //dcd_edpt_xfer_new(rhport, 0x00, NULL, 0);
+        spi_send_blocking(setup, 8, SETUP_DATA);
+        int len = spi_receive_blocking(bugger);
+        dcd_edpt_xfer_new(0, 0x80, bugger, len);
     }
 }
 
 
 void dcd_event_xfer_complete_new (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr){
     // TODO
-    uint8_t data[3] = {0x65, result, xferred_bytes};
-    if(level == 2){
+    if(((tusb_control_request_t *)usb_dpram->setup_packet)->bRequest == 0x5 /*SET ADDRESS*/) {
         //spi_send_blocking(data, 3, DEBUG_PRINT_AS_HEX);
         dcd_edpt0_status_complete(0, usb_dpram->setup_packet); // Update address
     }
