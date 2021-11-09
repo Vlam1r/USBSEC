@@ -45,13 +45,16 @@ _Noreturn int main() {
         else {
             sleep_ms(500);
             uint8_t setup[8] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x40, 0x0}; //wLength = 64
-            spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
-            while(get_flag() != USB_DATA)
-                spi_receive_blocking(data);
-            gpio_put(15, 0);
-            gpio_put(15, 1);
+            //spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
+
+            spi_receive_blocking(data);
+            spi_receive_blocking(data);
+            //gpio_put(15, 0);
+            sleep_ms(500);
+            //gpio_put(15, 1);
+
             uint8_t setup2[8] = {0x80, 0x6, 0x0, 0x2, 0x0, 0x0, 0x2c, 0x0};
-            spi_send_blocking(setup2, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
+            //spi_send_blocking(setup2, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
         }
         while(true) {
             len = spi_receive_blocking(data);
@@ -71,15 +74,22 @@ _Noreturn int main() {
             //spi_receive_blocking(data);
             //define_setup_packet(data);
             uint8_t setup[8] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x40, 0x0};
+            define_setup_packet(setup);
+
+
+
+
+            uint8_t setup2[8] = {0x80, 0x6, 0x0, 0x2, 0x0, 0x0, 0x2c, 0x0};
+            hcd_setup_send(0, 0, setup2);
             //{0x80, 0x6, 0x0, 0x2, 0x0, 0x0, 0x2c, 0x0};
             //{0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x40, 0x0}; //wLength = 64
-            define_setup_packet(setup);
+            //define_setup_packet(setup);
         }
 
         while(true) {
             /*uint8_t len = spi_receive_blocking(data);
-            spi_send_string("test");
-            spi_send_blocking(data, len, DEBUG_PRINT_AS_HEX);
+            //spi_send_string("test");
+            //spi_send_blocking(data, len, DEBUG_PRINT_AS_HEX);
             if(!test_master) {
                 if(get_flag() & USB_DATA) {
                     hcd_edpt_xfer(0, 0x00, 0x80, data, len); //0x80?
@@ -108,3 +118,10 @@ _Noreturn int main() {
     }
 
 }
+
+/*
+0x09 0x02 0x20 0x00 0x01 0x01 0x00 0x80
+0x70 0x09 0x04 0x00 0x00 0x02 0x08 0x06
+0x50 0x00 0x07 0x05 0x81 0x02 0x40 0x00
+0x00 0x07 0x05 0x02 0x02 0x40 0x00 0x00
+ */

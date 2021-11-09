@@ -71,7 +71,7 @@ typedef enum
     DCD_EVENT_COUNT
 } dcd_eventid_t;
 
-extern int level;
+extern volatile uint8_t level;
 
 void define_setup_packet(uint8_t *setup);
 

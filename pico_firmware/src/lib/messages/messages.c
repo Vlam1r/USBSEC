@@ -126,3 +126,11 @@ void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag) {
     bugger = data;
     multicore_fifo_push_blocking((len << 8) | flag);
 }
+
+uint8_t data[1000];
+void slavework() {
+    int len = spi_receive_blocking(data);
+    if(get_flag() & SETUP_DATA) {
+
+    }
+}
