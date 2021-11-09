@@ -29,5 +29,6 @@ uint8_t spi_receive_blocking(uint8_t *data);
 void spi_send_string(char *data);
 bool is_master(void);
 void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag);
+uint8_t get_flag();
 
 #endif //PICO_FIRMWARE_MESSAGES_H

@@ -7,6 +7,12 @@
 
 static const uint8_t *bugger;
 
+static uint8_t flxg;
+
+uint8_t get_flag() {
+    return flxg;
+}
+
 static void print_arr_hex(const uint8_t *data, int len) {
     for (int i = 0; i < len; i++) {
         printf("0x%02x ", data[i]);
@@ -108,7 +114,8 @@ uint8_t spi_receive_blocking(uint8_t *data) {
         printf((char *) data);
         printf("\n");
     }
-    return (flag & USB_DATA) ? len : 0;
+    flxg = flag;
+    return len;
 }
 
 void spi_send_string(char *data){

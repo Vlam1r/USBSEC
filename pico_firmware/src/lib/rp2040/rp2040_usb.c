@@ -215,12 +215,13 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
 
     memcpy(ep->user_buf, ep->hw_data_buf + buf_id*64, xferred_bytes);
+    //spi_send_blocking(ep->user_buf, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
     ep->xferred_len += xferred_bytes;
     ep->user_buf += xferred_bytes;
   }
 
   // Short packet
-  if (xferred_bytes < ep->wMaxPacketSize)
+  if (xferred_bytes < 64)
   {
     pico_trace("  Short packet on buffer %d with %u bytes\n", buf_id, xferred_bytes);
     // Reduce total length as this is last packet
@@ -264,6 +265,8 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
 
   // Now we have synced our state with the hardware. Is there more data to transfer?
   // If we are done then notify tinyusb
+  uint8_t len = ep->remaining_len;
+  //spi_send_blocking(&len, 1, USB_DATA | DEBUG_PRINT_AS_HEX);
   if (ep->remaining_len == 0)
   {
     pico_trace("Completed transfer of %d bytes on ep %d %s\n",
@@ -279,6 +282,7 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
 
   _hw_endpoint_lock_update(ep, -1);
   // More work to do
+
   return false;
 }
 

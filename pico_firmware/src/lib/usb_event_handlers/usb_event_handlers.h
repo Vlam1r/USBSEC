@@ -71,6 +71,8 @@ typedef enum
     DCD_EVENT_COUNT
 } dcd_eventid_t;
 
+extern int level;
+
 void define_setup_packet(uint8_t *setup);
 
 // Helper to send device attach event
