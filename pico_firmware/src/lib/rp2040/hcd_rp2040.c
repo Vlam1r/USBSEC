@@ -187,18 +187,6 @@ static void hcd_rp2040_irq_new(void)
     if (status & USB_INTS_HOST_CONN_DIS_BITS)
     {
         handled |= USB_INTS_HOST_CONN_DIS_BITS;
-
-        /*tusb_desc_endpoint_t ep0_desc = // Todo is needed??
-                {
-                        .bLength          = sizeof(tusb_desc_endpoint_t),
-                        .bDescriptorType  = TUSB_DESC_ENDPOINT,
-                        .bEndpointAddress = 0,
-                        .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
-                        .wMaxPacketSize   = { .size = 64 },
-                        .bInterval        = 0
-                };
-
-        hcd_edpt_open(0, 0, &ep0_desc);*/
         
         if (dev_speed())
         {

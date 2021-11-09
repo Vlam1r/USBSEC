@@ -15,26 +15,31 @@ volatile uint8_t level = 0;
  * Host events
  */
 
+static uint8_t attached = false;
 
 void define_setup_packet(uint8_t *setup){
     memcpy(setup_packet, setup, 8);
 }
 
 void slavework() {
+    gpio_put(PICO_DEFAULT_LED_PIN,1);
     int len = spi_receive_blocking(bugger);
+    gpio_put(PICO_DEFAULT_LED_PIN,0);
     //spi_send_blocking(bugger, len, get_flag());
     if(get_flag() & SETUP_DATA) {
         define_setup_packet(bugger);
+        if(!attached) return;
         usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
         hcd_setup_send(0, 0, setup_packet);
     } else if (get_flag() & USB_DATA){
-        hcd_edpt_xfer(0, 0, 0x80, bugger, len);
+        hcd_edpt_xfer(0, 0, 0x00, bugger, len);
     }
 }
 
 void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
     //if(level == 0){
     level = 0;
+    attached = true;
     hcd_setup_send(rhport, 0, setup_packet);
     /*}
     else {
@@ -120,18 +125,17 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const * setup, bool in
         return;
     }
     gpio_put(PICO_DEFAULT_LED_PIN,1);
-    {
+    if(true){
         //irq_set_enabled(USBCTRL_IRQ, false);
         spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
-        int len;
-        do{
-            len = spi_receive_blocking(bugger);
-        } while(!(get_flag() & USB_DATA));
+        int len = spi_receive_blocking(bugger);
+
         //gpio_put(PICO_DEFAULT_LED_PIN,0);
         //spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
         //spi_receive_blocking(bugger);*/
 
         dcd_edpt_xfer_new(0, 0x80, bugger, len);
+        //dcd_edpt_xfer_new(0, 0x80, arr, 18);
         if(len == 64)
             gpio_put(PICO_DEFAULT_LED_PIN,0);
         dcd_edpt_xfer_new(rhport, 0x00, NULL, 0);
@@ -139,7 +143,6 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const * setup, bool in
         //spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
         //gpio_put(PICO_DEFAULT_LED_PIN,0);
         //int len = spi_receive_blocking(bugger);
-        //dcd_edpt_xfer_new(0, 0x80, bugger, len);
         //irq_set_enabled(USBCTRL_IRQ, true);
         //dcd_edpt_xfer_new(rhport, 0x00, NULL, 0);
         level++;
