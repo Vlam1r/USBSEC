@@ -10,6 +10,7 @@
 #include "../messages/messages.h"
 #include "tusb_common.h"
 #include "tusb_types.h"
+#include <hardware/structs/usb.h>
 
 typedef struct hw_endpoint
 {
@@ -71,8 +72,6 @@ typedef enum
     DCD_EVENT_COUNT
 } dcd_eventid_t;
 
-extern volatile uint8_t level;
-
 void define_setup_packet(uint8_t *setup);
 
 // Helper to send device attach event
@@ -106,7 +105,6 @@ void dcd_int_enable_new(uint8_t rhport);
 
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request);
 
-extern uint8_t bugger[1000];
 void slavework();
 
 

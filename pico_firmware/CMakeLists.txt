@@ -31,8 +31,8 @@ add_executable(pico_firmware
         src/lib/rp2040/dcd_rp2040.c
         src/lib/rp2040/hcd_rp2040.c
         src/lib/rp2040/rp2040_usb.c
-        src/lib/usb_event_handlers/usb_event_handlers.c
-        )
+        src/lib/usb_event_handlers/device_event_handlers.c
+        src/lib/usb_event_handlers/host_event_handlers.c)
 
 
 #pico_generate_pio_header(pico_firmware ${CMAKE_CURRENT_LIST_DIR}/src/lib/i2c/i2c.pio)

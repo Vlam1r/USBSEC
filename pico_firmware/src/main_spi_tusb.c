@@ -5,9 +5,7 @@
 
 #include "hardware/gpio.h"
 
-#include "lib/usb_phy/usb_common.h"
 #include "lib/messages/messages.h"
-
 #include "lib/rp2040/rp2040_usb.h"
 
 uint8_t data[1000];
