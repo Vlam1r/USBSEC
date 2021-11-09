@@ -11,9 +11,9 @@
 uint8_t data[1000];
 
 _Noreturn int main() {
-    vreg_set_voltage(VREG_VOLTAGE_1_30);
-    set_sys_clock_khz(290400, true);
-    //set_sys_clock_khz(144000, true);
+    //vreg_set_voltage(VREG_VOLTAGE_1_30);
+    //set_sys_clock_khz(290400, true);
+    set_sys_clock_khz(144000, true);
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
