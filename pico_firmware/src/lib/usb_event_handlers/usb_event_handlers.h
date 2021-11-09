@@ -107,5 +107,7 @@ void dcd_int_enable_new(uint8_t rhport);
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request);
 
 extern uint8_t bugger[1000];
+void slavework();
+
 
 #endif //PICO_FIRMWARE_USB_EVENT_HANDLERS_H

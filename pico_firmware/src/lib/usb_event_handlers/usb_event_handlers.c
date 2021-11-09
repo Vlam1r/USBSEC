@@ -14,19 +14,33 @@ volatile uint8_t level = 0;
  * Host events
  */
 
+
 void define_setup_packet(uint8_t *setup){
     memcpy(setup_packet, setup, 8);
 }
 
-void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
-    if(level == 0){
-        hcd_setup_send(rhport, 0, setup_packet);
+void slavework() {
+    int len = spi_receive_blocking(bugger);
+    //spi_send_blocking(bugger, len, get_flag());
+    if(get_flag() & SETUP_DATA) {
+        define_setup_packet(bugger);
+        usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
+        hcd_setup_send(0, 0, setup_packet);
+    } else if (get_flag() & USB_DATA){
+        hcd_edpt_xfer(0, 0, 0x80, bugger, len);
     }
+}
+
+void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
+    //if(level == 0){
+    level = 0;
+    hcd_setup_send(rhport, 0, setup_packet);
+    /*}
     else {
         spi_send_blocking(&level, 1, DEBUG_PRINT_AS_HEX);
         uint8_t setup2[8] = {0x80, 0x6, 0x0, 0x2, 0x0, 0x0, 0x2c, 0x0};
         hcd_setup_send(0, 0, setup2);
-    }
+    }*/
     /*//hcd_edpt_xfer(0, 0, 0x00, bugger, 0x40);
     uint8_t arr[18] = {0x12, 0x01, 0x10, 0x02, 0x00, 0x00, 0x00, 0x40,
                        0x81, 0x07, 0x81, 0x55, 0x00, 0x01, 0x01, 0x02,
@@ -55,9 +69,13 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred
         uint16_t len = ((tusb_control_request_t *) setup_packet)->wLength;
         hcd_edpt_xfer(0, 0, 0x80, bugger, len);
     }
-    else if (level == 1){
+    else if (level == 1) {
+        level = 2;
         spi_send_blocking(bugger, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
-        gpio_put(PICO_DEFAULT_LED_PIN,0);
+        //hcd_edpt_xfer(0, 0, 0x00, bugger, 0);
+        slavework();
+    }
+        /*gpio_put(PICO_DEFAULT_LED_PIN,0);
         level = 2;
         usb_hw->sie_ctrl = SIE_CTRL_BASE | USB_SIE_CTRL_RESET_BUS_BITS;
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
@@ -72,7 +90,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred
         hcd_edpt_xfer(0, 0, 0x80, bugger, len);
     } else {
         spi_send_blocking(bugger, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
-    }
+    }*/
     //hcd_edpt_xfer(0, dev_addr, ep_addr, bugger, 1);
 }
 

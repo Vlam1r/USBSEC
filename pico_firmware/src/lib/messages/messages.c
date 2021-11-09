@@ -1,4 +1,5 @@
 #include <sys/cdefs.h>
+#include <hardware/structs/usb.h>
 //
 // Created by vlamir on 11/2/21.
 //
@@ -7,10 +8,10 @@
 
 static const uint8_t *bugger;
 
-static uint8_t flxg;
+static uint8_t flag;
 
 uint8_t get_flag() {
-    return flxg;
+    return flag;
 }
 
 static void print_arr_hex(const uint8_t *data, int len) {
@@ -67,7 +68,8 @@ bool is_master(void) {
     return gpio_get(GPIO_MASTER_SELECT_PIN);
 }
 
-void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t flag) {
+void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t new_flag) {
+    flag = new_flag;
     assert(len < 255);
     if (!is_master()) {
         printf("Setting irq pin high\n");
@@ -92,7 +94,6 @@ void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t flag) {
 
 uint8_t spi_receive_blocking(uint8_t *data) {
     uint8_t len = 0;
-    uint8_t flag = 0;
     if (is_master()) {
         //printf("Waiting for irq pin\n");
         while (gpio_get(GPIO_SLAVE_IRQ_PIN) == 0)
@@ -114,7 +115,6 @@ uint8_t spi_receive_blocking(uint8_t *data) {
         printf((char *) data);
         printf("\n");
     }
-    flxg = flag;
     return len;
 }
 
@@ -125,12 +125,4 @@ void spi_send_string(char *data){
 void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag) {
     bugger = data;
     multicore_fifo_push_blocking((len << 8) | flag);
-}
-
-uint8_t data[1000];
-void slavework() {
-    int len = spi_receive_blocking(data);
-    if(get_flag() & SETUP_DATA) {
-
-    }
 }

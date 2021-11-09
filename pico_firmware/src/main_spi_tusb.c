@@ -14,12 +14,7 @@ uint8_t data[1000];
 _Noreturn int main() {
     set_sys_clock_khz(144000, true);
 
-    bool test_master = false;
-
-    gpio_pull_up(15);
-    gpio_init(15);
-    gpio_set_dir(15, GPIO_OUT);
-    gpio_put(15, 1);
+    bool test_master = true;
 
     if(is_master() ^ test_master) {
         stdio_init_all();
@@ -27,12 +22,10 @@ _Noreturn int main() {
     }
 
     gpio_init(PICO_DEFAULT_LED_PIN);
-
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
     messages_config();
-
-    gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
     if(is_master()) {
         // master
@@ -45,16 +38,21 @@ _Noreturn int main() {
         else {
             sleep_ms(500);
             uint8_t setup[8] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x40, 0x0}; //wLength = 64
-            //spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
+            spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
 
-            spi_receive_blocking(data);
-            spi_receive_blocking(data);
-            //gpio_put(15, 0);
+            while(!(get_flag() & USB_DATA))
+                spi_receive_blocking(data);
             sleep_ms(500);
-            //gpio_put(15, 1);
 
             uint8_t setup2[8] = {0x80, 0x6, 0x0, 0x2, 0x0, 0x0, 0x2c, 0x0};
-            //spi_send_blocking(setup2, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
+            spi_send_blocking(setup2, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
+
+            while(!(get_flag() & USB_DATA))
+                spi_receive_blocking(data);
+            sleep_ms(500);
+
+            uint8_t config[8] = {0x0, 0x9, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0};
+            spi_send_blocking(config, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
         }
         while(true) {
             len = spi_receive_blocking(data);
@@ -71,20 +69,19 @@ _Noreturn int main() {
             hcd_init(0);
             hcd_int_enable(0);
 
+
             //spi_receive_blocking(data);
             //define_setup_packet(data);
-            uint8_t setup[8] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x40, 0x0};
-            define_setup_packet(setup);
-
-
-
-
-            uint8_t setup2[8] = {0x80, 0x6, 0x0, 0x2, 0x0, 0x0, 0x2c, 0x0};
-            hcd_setup_send(0, 0, setup2);
+            //uint8_t setup[8] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x40, 0x0};
+            //define_setup_packet(setup);
+            //uint8_t setup2[8] = {0x80, 0x6, 0x0, 0x2, 0x0, 0x0, 0x2c, 0x0};
+            //hcd_setup_send(0, 0, setup2);
             //{0x80, 0x6, 0x0, 0x2, 0x0, 0x0, 0x2c, 0x0};
             //{0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x40, 0x0}; //wLength = 64
             //define_setup_packet(setup);
         }
+
+        slavework();
 
         while(true) {
             /*uint8_t len = spi_receive_blocking(data);
