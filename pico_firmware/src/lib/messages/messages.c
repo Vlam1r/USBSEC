@@ -9,12 +9,14 @@
 static const uint8_t *bugger;
 
 static uint8_t flag;
+static uint8_t dummy = 0xff;
 
 /// Retreive current flag
 /// \returns Flag set by SPI transmission
 uint8_t get_flag() {
     return flag;
 }
+
 /// Prints array in a hexadecimal format, one byte per row. For debugging.
 ///
 /// \param data Array to be printed
@@ -32,7 +34,7 @@ static void print_arr_hex(const uint8_t *data, int len) {
 }
 
 _Noreturn static void core1_main() {
-    while(true) {
+    while (true) {
         uint32_t hdr = multicore_fifo_pop_blocking();
         spi_send_blocking(bugger, hdr >> 8, hdr & 0xFF);
     }
@@ -89,14 +91,14 @@ void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t new_flag) {
         printf("Setting irq pin high\n");
         gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
     }
-    uint8_t hdr[2] = {len, flag};
-    spi_write_blocking(spi_default, hdr, 2);
+    uint8_t hdr[3] = {dummy, len, flag};
+    spi_write_blocking(spi_default, hdr, 3);
     spi_write_blocking(spi_default, data, len);
-    if(flag & DEBUG_PRINT_AS_HEX) {
+    if (flag & DEBUG_PRINT_AS_HEX) {
         printf("Sent data:\n");
         print_arr_hex(data, len);
     }
-    if(flag & DEBUG_PRINT_AS_STRING) {
+    if (flag & DEBUG_PRINT_AS_STRING) {
         printf((char *) data);
         printf("\n");
     }
@@ -115,27 +117,28 @@ uint8_t spi_receive_blocking(uint8_t *data) {
     } else {
         printf("Waiting for header\n");
     }
-    while (len == 0) {
-        spi_read_blocking(spi_default, 0, &len, 1);
-    }
+    do {
+        spi_read_blocking(spi_default, 0, &dummy, 1);
+    } while (dummy != 0xff);
 
     gpio_put(PICO_DEFAULT_LED_PIN, 0);
+    spi_read_blocking(spi_default, 0, &len, 1);
     spi_read_blocking(spi_default, 0, &flag, 1);
-    for(int i=0;i<1000;i++) tight_loop_contents();
+    for (int i = 0; i < 1000; i++) tight_loop_contents();
     spi_read_blocking(spi_default, 0, data, len & 0xFF);
-    if(flag & DEBUG_PRINT_AS_HEX) {
+    if (flag & DEBUG_PRINT_AS_HEX) {
         printf("Received length %d\n", len);
         printf("Received data:\n");
         print_arr_hex(data, len);
     }
-    if(flag & DEBUG_PRINT_AS_STRING) {
+    if (flag & DEBUG_PRINT_AS_STRING) {
         printf((char *) data);
         printf("\n");
     }
     return len;
 }
 
-void spi_send_string(char *data){
+void spi_send_string(char *data) {
     spi_send_blocking((uint8_t *) data, strlen(data), DEBUG_PRINT_AS_STRING);
 }
 
