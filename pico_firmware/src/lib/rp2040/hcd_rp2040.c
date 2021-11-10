@@ -180,7 +180,7 @@ static void hcd_rp2040_irq_new(void)
     uint32_t status = usb_hw->ints;
     uint32_t handled = 0;
 
-    uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
+    //uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
     //spi_send_blocking(&data[3], 1, DEBUG_PRINT_AS_HEX);
 
 

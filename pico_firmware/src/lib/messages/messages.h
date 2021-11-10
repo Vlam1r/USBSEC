@@ -23,11 +23,16 @@ typedef enum {
     DEBUG_PRINT_AS_HEX = 0x8
 } msg_type;
 
+typedef enum {
+    SPI_ROLE_MASTER,
+    SPI_ROLE_SLAVE
+} spi_role;
+
 void messages_config(void);
 void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t flag);
 uint8_t spi_receive_blocking(uint8_t *data);
 void spi_send_string(char *data);
-bool is_master(void);
+spi_role get_role(void);
 void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag);
 uint8_t get_flag();
 

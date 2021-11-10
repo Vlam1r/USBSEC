@@ -10,10 +10,15 @@ static const uint8_t *bugger;
 
 static uint8_t flag;
 
+/// Retreive current flag
+/// \returns Flag set by SPI transmission
 uint8_t get_flag() {
     return flag;
 }
-
+/// Prints array in a hexadecimal format, one byte per row. For debugging.
+///
+/// \param data Array to be printed
+/// \param len Array length
 static void print_arr_hex(const uint8_t *data, int len) {
     for (int i = 0; i < len; i++) {
         printf("0x%02x ", data[i]);
@@ -33,6 +38,8 @@ _Noreturn static void core1_main() {
     }
 }
 
+/// Setup master/slave SPI
+///
 void messages_config(void) {
     multicore_launch_core1(core1_main);
 
@@ -40,19 +47,19 @@ void messages_config(void) {
     gpio_set_dir(GPIO_MASTER_SELECT_PIN, GPIO_IN);
 
     gpio_init(GPIO_SLAVE_IRQ_PIN);
-    gpio_set_dir(GPIO_SLAVE_IRQ_PIN, is_master() ? GPIO_IN : GPIO_OUT);
-    if (!is_master()) {
+    gpio_set_dir(GPIO_SLAVE_IRQ_PIN, (get_role() == SPI_ROLE_MASTER) ? GPIO_IN : GPIO_OUT);
+    if (get_role() == SPI_ROLE_SLAVE) {
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
     }
 
-    if (is_master()) {
+    if (get_role() == SPI_ROLE_SLAVE) {
         printf("--------\n MASTER \n--------\n");
     } else {
         printf("-------\n SLAVE \n-------\n");
     }
 
     spi_init(spi_default, SPI_BAUDRATE);
-    spi_set_slave(spi_default, !is_master());
+    spi_set_slave(spi_default, get_role() == SPI_ROLE_SLAVE);
     gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
     gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(PICO_DEFAULT_SPI_TX_PIN, GPIO_FUNC_SPI);
@@ -64,14 +71,21 @@ void messages_config(void) {
 
 }
 
-bool is_master(void) {
-    return gpio_get(GPIO_MASTER_SELECT_PIN);
+/// Checks whether microcontroller is master or slave
+///
+/// \return True when Master, False when slave
+spi_role get_role(void) {
+    return gpio_get(GPIO_MASTER_SELECT_PIN) ? SPI_ROLE_MASTER : SPI_ROLE_SLAVE;
 }
 
+/// Send array via SPI. Slave/master agnostic
+/// \param data Array to be sent
+/// \param len Length to be sent
+/// \param new_flag New flag to be set on both master and slave
 void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t new_flag) {
     flag = new_flag;
     assert(len < 255);
-    if (!is_master()) {
+    if (get_role() == SPI_ROLE_SLAVE) {
         printf("Setting irq pin high\n");
         gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
     }
@@ -86,22 +100,21 @@ void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t new_flag) {
         printf((char *) data);
         printf("\n");
     }
-    if (!is_master()) {
+    if (get_role() == SPI_ROLE_SLAVE) {
         printf("Setting irq pin low\n");
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
     }
 }
-static int led = 1;
+
 uint8_t spi_receive_blocking(uint8_t *data) {
     uint8_t len = 0;
-    if (is_master()) {
-        //printf("Waiting for irq pin\n");
+    if (get_role() == SPI_ROLE_MASTER) {
         while (gpio_get(GPIO_SLAVE_IRQ_PIN) == 0) {
             tight_loop_contents();
         }
-        //printf("Irq pin high. Proceeding...\n");
-    } else
+    } else {
         printf("Waiting for header\n");
+    }
     while (len == 0) {
         spi_read_blocking(spi_default, 0, &len, 1);
     }

@@ -219,15 +219,14 @@ static void reset_non_control_endpoints(void)
   next_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
-static uint8_t led = 1;
 static void dcd_rp2040_irq_new(void)
 {
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
-    if(true){//} && status != USB_INTS_BUS_RESET_BITS && status != USB_INTS_DEV_SUSPEND_BITS){//  && status != 0x10000) {
+    /*if(true){//} && status != USB_INTS_BUS_RESET_BITS && status != USB_INTS_DEV_SUSPEND_BITS){//  && status != 0x10000) {
         uint8_t data[4] = {status == USB_INTS_SETUP_REQ_BITS, status >> 16, status >> 8, status};
         //spi_send_blocking(data, 1, DEBUG_PRINT_AS_HEX);
-    }
+    }*/
 
     if (status & USB_INTS_SETUP_REQ_BITS)
     {

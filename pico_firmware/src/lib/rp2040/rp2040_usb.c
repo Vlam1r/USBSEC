@@ -265,7 +265,7 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
 
   // Now we have synced our state with the hardware. Is there more data to transfer?
   // If we are done then notify tinyusb
-  uint8_t len = ep->remaining_len;
+
   //spi_send_blocking(&len, 1, USB_DATA | DEBUG_PRINT_AS_HEX);
   if (ep->remaining_len == 0)
   {

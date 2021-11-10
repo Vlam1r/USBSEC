@@ -27,7 +27,7 @@ void slavework() {
         usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
         hcd_setup_send(0, 0, setup_packet);
     } else if (get_flag() & USB_DATA){
-        //hcd_edpt_xfer(0, 0, bugger[len-1] ^ 0x80, bugger, len-1);
+        hcd_edpt_xfer(0, 0, bugger[len-1] ^ 0x80, bugger, len-1);
     }
 }
 
@@ -44,7 +44,7 @@ void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
 
 
 void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
-    uint8_t data[2] = {result, xferred_bytes};
+    //uint8_t data[2] = {result, xferred_bytes};
     //spi_send_blocking(data, 2, DEBUG_PRINT_AS_HEX);
     if(level == 0) {
         level = 1;
