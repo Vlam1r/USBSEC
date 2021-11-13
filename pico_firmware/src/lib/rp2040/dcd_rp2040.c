@@ -47,42 +47,38 @@ static uint8_t *next_buffer_ptr;
 // USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
 static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2];
 
-static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
-{
-  return &hw_endpoints[num][dir];
+static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir) {
+    return &hw_endpoints[num][dir];
 }
 
-static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
-{
-  uint8_t num = tu_edpt_number(ep_addr);
-  tusb_dir_t dir = tu_edpt_dir(ep_addr);
-  return hw_endpoint_get_by_num(num, dir);
+static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr) {
+    uint8_t num = tu_edpt_number(ep_addr);
+    tusb_dir_t dir = tu_edpt_dir(ep_addr);
+    return hw_endpoint_get_by_num(num, dir);
 }
 
-static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
-{
-  // size must be multiple of 64
-  uint16_t size = (ep->wMaxPacketSize + 63) / 64 * 64;
+static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type) {
+    // size must be multiple of 64
+    uint16_t size = (ep->wMaxPacketSize + 63) / 64 * 64;
 
-  // double buffered Bulk endpoint
-  if ( transfer_type == TUSB_XFER_BULK )
-  {
-    size *= 2u;
-  }
+    // double buffered Bulk endpoint
+    if (transfer_type == TUSB_XFER_BULK) {
+        size *= 2u;
+    }
 
-  ep->hw_data_buf = next_buffer_ptr;
-  next_buffer_ptr += size;
+    ep->hw_data_buf = next_buffer_ptr;
+    next_buffer_ptr += size;
 
-  assert(((uintptr_t )next_buffer_ptr & 0b111111u) == 0);
-  uint dpram_offset = hw_data_offset(ep->hw_data_buf);
-  assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
+    assert(((uintptr_t) next_buffer_ptr & 0b111111u) == 0);
+    uint dpram_offset = hw_data_offset(ep->hw_data_buf);
+    assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
 
-  pico_info("  Alloced %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
+    pico_info("  Alloced %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
 
-  // Fill in endpoint control register with buffer offset
-  uint32_t const reg = EP_CTRL_ENABLE_BITS | (transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
+    // Fill in endpoint control register with buffer offset
+    uint32_t const reg = EP_CTRL_ENABLE_BITS | (transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
 
-  *ep->endpoint_control = reg;
+    *ep->endpoint_control = reg;
 }
 
 #if 0 // todo unused
@@ -104,75 +100,61 @@ static void hw_endpoint_close(uint8_t ep_addr)
 }
 #endif
 
-static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
-{
-  struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-
-  const uint8_t num = tu_edpt_number(ep_addr);
-  const tusb_dir_t dir = tu_edpt_dir(ep_addr);
-
-  ep->ep_addr = ep_addr;
-
-  // For device, IN is a tx transfer and OUT is an rx transfer
-  ep->rx = (dir == TUSB_DIR_OUT);
-
-  ep->next_pid = 0u;
-  ep->wMaxPacketSize = wMaxPacketSize;
-  ep->transfer_type = transfer_type;
-
-  // Every endpoint has a buffer control register in dpram
-  if ( dir == TUSB_DIR_IN )
-  {
-    ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].in;
-  }
-  else
-  {
-    ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].out;
-  }
-
-  // Clear existing buffer control state
-  *ep->buffer_control = 0;
-
-  if ( num == 0 )
-  {
-    // EP0 has no endpoint control register because the buffer offsets are fixed
-    ep->endpoint_control = NULL;
-
-    // Buffer offset is fixed (also double buffered)
-    ep->hw_data_buf = (uint8_t*) &usb_dpram->ep0_buf_a[0];
-  }
-  else
-  {
-    // Set the endpoint control register (starts at EP1, hence num-1)
-    if ( dir == TUSB_DIR_IN )
-    {
-      ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].in;
-    }
-    else
-    {
-      ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].out;
-    }
-
-    // alloc a buffer and fill in endpoint control register
-    _hw_endpoint_alloc(ep, transfer_type);
-  }
-}
-
-static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
-{
+static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
     struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-    _hw_endpoint_xfer_start(ep, buffer, total_bytes);
+
+    const uint8_t num = tu_edpt_number(ep_addr);
+    const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+
+    ep->ep_addr = ep_addr;
+
+    // For device, IN is a tx transfer and OUT is an rx transfer
+    ep->rx = (dir == TUSB_DIR_OUT);
+
+    ep->next_pid = 0u;
+    ep->wMaxPacketSize = wMaxPacketSize;
+    ep->transfer_type = transfer_type;
+
+    // Every endpoint has a buffer control register in dpram
+    if (dir == TUSB_DIR_IN) {
+        ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].in;
+    } else {
+        ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].out;
+    }
+
+    // Clear existing buffer control state
+    *ep->buffer_control = 0;
+
+    if (num == 0) {
+        // EP0 has no endpoint control register because the buffer offsets are fixed
+        ep->endpoint_control = NULL;
+
+        // Buffer offset is fixed (also double buffered)
+        ep->hw_data_buf = (uint8_t *) &usb_dpram->ep0_buf_a[0];
+    } else {
+        // Set the endpoint control register (starts at EP1, hence num-1)
+        if (dir == TUSB_DIR_IN) {
+            ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].in;
+        } else {
+            ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].out;
+        }
+
+        // alloc a buffer and fill in endpoint control register
+        _hw_endpoint_alloc(ep, transfer_type);
+    }
 }
 
-static void hw_handle_buff_status(void)
-{
+static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
+    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
+    hw_endpoint_xfer_start(ep, buffer, total_bytes);
+}
+
+static void hw_handle_buff_status(void) {
     uint32_t remaining_buffers = usb_hw->buf_status;
     pico_trace("buf_status = 0x%08x\n", remaining_buffers);
     uint bit = 1u;
-    for (uint i = 0; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i++)
-    {
-        if (remaining_buffers & bit)
-        {
+    for (uint i = 0; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i++) {
+        if (remaining_buffers & bit) {
             // clear this in advance
             usb_hw_clear->buf_status = bit;
 
@@ -181,8 +163,7 @@ static void hw_handle_buff_status(void)
 
             // Continue xfer
             bool done = hw_endpoint_xfer_continue(ep);
-            if (done)
-            {
+            if (done) {
                 // Notify
                 dcd_event_xfer_complete_new(0, ep->ep_addr, ep->xferred_len, XFER_RESULT_SUCCESS, true);
                 hw_endpoint_reset_transfer(ep);
@@ -193,34 +174,29 @@ static void hw_handle_buff_status(void)
     }
 }
 
-static void reset_ep0_pid(void)
-{
+static void reset_ep0_pid(void) {
     // If we have finished this transfer on EP0 set pid back to 1 for next
     // setup transfer. Also clear a stall in case
     uint8_t addrs[] = {0x0, 0x80};
-    for (uint i = 0 ; i < TU_ARRAY_SIZE(addrs); i++)
-    {
+    for (uint i = 0; i < TU_ARRAY_SIZE(addrs); i++) {
         struct hw_endpoint *ep = hw_endpoint_get_by_addr(addrs[i]);
         ep->next_pid = 1u;
     }
 }
 
-static void reset_non_control_endpoints(void)
-{
-  // Disable all non-control
-  for ( uint8_t i = 0; i < USB_MAX_ENDPOINTS-1; i++ )
-  {
-    usb_dpram->ep_ctrl[i].in = 0;
-    usb_dpram->ep_ctrl[i].out = 0;
-  }
+static void reset_non_control_endpoints(void) {
+    // Disable all non-control
+    for (uint8_t i = 0; i < USB_MAX_ENDPOINTS - 1; i++) {
+        usb_dpram->ep_ctrl[i].in = 0;
+        usb_dpram->ep_ctrl[i].out = 0;
+    }
 
-  // clear non-control hw endpoints
-  tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2*sizeof(hw_endpoint_t));
-  next_buffer_ptr = &usb_dpram->epx_data[0];
+    // clear non-control hw endpoints
+    tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2 * sizeof(hw_endpoint_t));
+    next_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
-static void dcd_rp2040_irq_new(void)
-{
+static void dcd_rp2040_irq_new(void) {
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
     /*if(true){//} && status != USB_INTS_BUS_RESET_BITS && status != USB_INTS_DEV_SUSPEND_BITS){//  && status != 0x10000) {
@@ -228,10 +204,9 @@ static void dcd_rp2040_irq_new(void)
         //spi_send_blocking(data, 1, DEBUG_PRINT_AS_HEX);
     }*/
 
-    if (status & USB_INTS_SETUP_REQ_BITS)
-    {
+    if (status & USB_INTS_SETUP_REQ_BITS) {
         handled |= USB_INTS_SETUP_REQ_BITS;
-        uint8_t const *setup = (uint8_t const *)&usb_dpram->setup_packet;
+        uint8_t const *setup = (uint8_t const *) &usb_dpram->setup_packet;
         // reset pid to both 1 (data and ack)
         reset_ep0_pid();
         //spi_send_blocking(setup, 4, SETUP_DATA | DEBUG_PRINT_AS_HEX);
@@ -240,8 +215,7 @@ static void dcd_rp2040_irq_new(void)
         usb_hw_clear->sie_status = USB_SIE_STATUS_SETUP_REC_BITS;
     }
 
-    if (status & USB_INTS_BUFF_STATUS_BITS)
-    {
+    if (status & USB_INTS_BUFF_STATUS_BITS) {
         handled |= USB_INTS_BUFF_STATUS_BITS;
         hw_handle_buff_status();
     }
@@ -267,15 +241,14 @@ static void dcd_rp2040_irq_new(void)
 #endif
 
     // SE0 for 2.5 us or more (will last at least 10ms)
-    if (status & USB_INTS_BUS_RESET_BITS)
-    {
+    if (status & USB_INTS_BUS_RESET_BITS) {
         pico_trace("BUS RESET\n");
 
         handled |= USB_INTS_BUS_RESET_BITS;
 
         usb_hw->dev_addr_ctrl = 0;
         reset_non_control_endpoints();
-        //dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
+        device_event_bus_reset();
         usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
     }
 
@@ -287,22 +260,19 @@ static void dcd_rp2040_irq_new(void)
      * because without VBUS detection, it is impossible to tell the difference between
      * being disconnected and suspended.
      */
-    if (status & USB_INTS_DEV_SUSPEND_BITS)
-    {
+    if (status & USB_INTS_DEV_SUSPEND_BITS) {
         handled |= USB_INTS_DEV_SUSPEND_BITS;
         //dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_SUSPENDED_BITS;
     }
 
-    if (status & USB_INTS_DEV_RESUME_FROM_HOST_BITS)
-    {
+    if (status & USB_INTS_DEV_RESUME_FROM_HOST_BITS) {
         handled |= USB_INTS_DEV_RESUME_FROM_HOST_BITS;
         //dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
     }
 
-    if (status ^ handled)
-    {
+    if (status ^ handled) {
         panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
     }
 }
@@ -319,133 +289,120 @@ static void dcd_rp2040_irq_new(void)
  *------------------------------------------------------------------*/
 
 // connect by enabling internal pull-up resistor on D+/D-
-void dcd_connect(uint8_t rhport)
-{
+void dcd_connect(uint8_t rhport) {
     (void) rhport;
     usb_hw_set->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
 }
 
-void dcd_init_new (uint8_t rhport)
-{
-  assert(rhport == 0);
+void dcd_init_new(uint8_t rhport) {
+    assert(rhport == 0);
 
-  // Reset hardware to default state
-  rp2040_usb_init();
+    // Reset hardware to default state
+    rp2040_usb_init();
 
 #if FORCE_VBUS_DETECT
-  // Force VBUS detect so the device thinks it is plugged into a host
-  usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
+    // Force VBUS detect so the device thinks it is plugged into a host
+    usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 #endif
 
-  irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq_new);
+    irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq_new);
 
-  // Init control endpoints
-  tu_memclr(hw_endpoints[0], 2*sizeof(hw_endpoint_t));
-  hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
-  hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
+    // Init control endpoints
+    tu_memclr(hw_endpoints[0], 2 * sizeof(hw_endpoint_t));
+    hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
+    hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
 
-  // Init non-control endpoints
-  reset_non_control_endpoints();
+    // Init non-control endpoints
+    reset_non_control_endpoints();
 
-  // Initializes the USB peripheral for device mode and enables it.
-  // Don't need to enable the pull up here. Force VBUS
-  usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS;
+    // Initializes the USB peripheral for device mode and enables it.
+    // Don't need to enable the pull up here. Force VBUS
+    usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS;
 
-  // Enable individual controller IRQS here. Processor interrupt enable will be used
-  // for the global interrupt enable...
-  // Note: Force VBUS detect cause disconnection not detectable
-  usb_hw->sie_ctrl = USB_SIE_CTRL_EP0_INT_1BUF_BITS;
-  usb_hw->inte     = USB_INTS_BUFF_STATUS_BITS | USB_INTS_BUS_RESET_BITS | USB_INTS_SETUP_REQ_BITS |
-                     USB_INTS_DEV_SUSPEND_BITS | USB_INTS_DEV_RESUME_FROM_HOST_BITS |
-                     (FORCE_VBUS_DETECT ? 0 : USB_INTS_DEV_CONN_DIS_BITS);
+    // Enable individual controller IRQS here. Processor interrupt enable will be used
+    // for the global interrupt enable...
+    // Note: Force VBUS detect cause disconnection not detectable
+    usb_hw->sie_ctrl = USB_SIE_CTRL_EP0_INT_1BUF_BITS;
+    usb_hw->inte = USB_INTS_BUFF_STATUS_BITS | USB_INTS_BUS_RESET_BITS | USB_INTS_SETUP_REQ_BITS |
+                   USB_INTS_DEV_SUSPEND_BITS | USB_INTS_DEV_RESUME_FROM_HOST_BITS |
+                   (FORCE_VBUS_DETECT ? 0 : USB_INTS_DEV_CONN_DIS_BITS);
 
-  dcd_connect(rhport);
+    dcd_connect(rhport);
 }
 
-void dcd_int_enable_new(uint8_t rhport)
-{
+void dcd_int_enable_new(uint8_t rhport) {
     assert(rhport == 0);
     irq_set_enabled(USBCTRL_IRQ, true);
 }
 
 // disconnect by disabling internal pull-up resistor on D+/D-
-void dcd_disconnect(uint8_t rhport)
-{
-  (void) rhport;
-  usb_hw_clear->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
+void dcd_disconnect(uint8_t rhport) {
+    (void) rhport;
+    usb_hw_clear->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
 }
 
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
 
-void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void) rhport;
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *request) {
+    (void) rhport;
 
-  if ( request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
-       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
-       request->bRequest == TUSB_REQ_SET_ADDRESS )
-  {
-    usb_hw->dev_addr_ctrl = (uint8_t) request->wValue;
-  }
+    if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
+        request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
+        request->bRequest == TUSB_REQ_SET_ADDRESS) {
+        usb_hw->dev_addr_ctrl = (uint8_t) request->wValue;
+    }
 }
 
-bool dcd_edpt_open_new (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
-{
+bool dcd_edpt_open_new(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt) {
     assert(rhport == 0);
     hw_endpoint_init(desc_edpt->bEndpointAddress, desc_edpt->wMaxPacketSize.size, desc_edpt->bmAttributes.xfer);
     return true;
 }
 
-void dcd_edpt_close_all (uint8_t rhport)
-{
-  (void) rhport;
+void dcd_edpt_close_all(uint8_t rhport) {
+    (void) rhport;
 
-  // may need to use EP Abort
-  reset_non_control_endpoints();
+    // may need to use EP Abort
+    reset_non_control_endpoints();
 }
 
-bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
-{
+bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
     assert(rhport == 0);
     hw_endpoint_xfer(ep_addr, buffer, total_bytes);
     return true;
 }
 
-void dcd_edpt_stall_new(uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
+void dcd_edpt_stall_new(uint8_t rhport, uint8_t ep_addr) {
+    (void) rhport;
 
-  if ( tu_edpt_number(ep_addr) == 0 )
-  {
-    // A stall on EP0 has to be armed so it can be cleared on the next setup packet
-    usb_hw_set->ep_stall_arm = (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
-  }
+    if (tu_edpt_number(ep_addr) == 0) {
+        // A stall on EP0 has to be armed so it can be cleared on the next setup packet
+        usb_hw_set->ep_stall_arm = (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) ? USB_EP_STALL_ARM_EP0_IN_BITS
+                                                                         : USB_EP_STALL_ARM_EP0_OUT_BITS;
+    }
 
-  struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-
-  // stall and clear current pending buffer
-  // may need to use EP_ABORT
-  _hw_endpoint_buffer_control_set_value32(ep, USB_BUF_CTRL_STALL);
-}
-
-void dcd_edpt_clear_stall_new(uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  if (tu_edpt_number(ep_addr))
-  {
     struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
 
-    // clear stall also reset toggle to DATA0, ready for next transfer
-    ep->next_pid = 0;
-    _hw_endpoint_buffer_control_clear_mask32(ep, USB_BUF_CTRL_STALL);
-  }
+    // stall and clear current pending buffer
+    // may need to use EP_ABORT
+    hw_endpoint_buffer_control_set_value32(ep, USB_BUF_CTRL_STALL);
 }
 
-void dcd_edpt_close_new (uint8_t rhport, uint8_t ep_addr)
-{
+void dcd_edpt_clear_stall_new(uint8_t rhport, uint8_t ep_addr) {
+    (void) rhport;
+
+    if (tu_edpt_number(ep_addr)) {
+        struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
+
+        // clear stall also reset toggle to DATA0, ready for next transfer
+        ep->next_pid = 0;
+        hw_endpoint_buffer_control_clear_mask32(ep, USB_BUF_CTRL_STALL);
+    }
+}
+
+void dcd_edpt_close_new(uint8_t rhport, uint8_t ep_addr) {
     (void) rhport;
     (void) ep_addr;
 
@@ -453,8 +410,7 @@ void dcd_edpt_close_new (uint8_t rhport, uint8_t ep_addr)
     pico_trace("dcd_edpt_close %02x\n", ep_addr);
 }
 
-void dcd_int_handler_new(uint8_t rhport)
-{
-  (void) rhport;
-  dcd_rp2040_irq_new();
+void dcd_int_handler_new(uint8_t rhport) {
+    (void) rhport;
+    dcd_rp2040_irq_new();
 }

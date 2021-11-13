@@ -12,8 +12,7 @@
 #include "tusb_types.h"
 #include <hardware/structs/usb.h>
 
-typedef struct hw_endpoint
-{
+typedef struct hw_endpoint {
     // Is this a valid struct
     bool configured;
 
@@ -54,8 +53,7 @@ typedef struct hw_endpoint
     uint8_t interrupt_num;
 } hw_endpoint_t;
 
-typedef enum
-{
+typedef enum {
     DCD_EVENT_INVALID = 0,
     DCD_EVENT_BUS_RESET,
     DCD_EVENT_UNPLUGGED,
@@ -81,29 +79,37 @@ void hcd_event_device_attach(uint8_t rhport, bool in_isr);
 void hcd_event_device_remove(uint8_t rhport, bool in_isr);
 
 void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr);
-void dcd_event_xfer_complete_new (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr);
 
-void dcd_event_setup_received_new(uint8_t rhport, uint8_t const * setup, bool in_isr);
+void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr);
+
+void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_isr);
+
 extern bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
 
-void dcd_event_bus_reset (uint8_t rhport, int speed, bool in_isr);
-extern void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr);
-bool dcd_edpt_open_new (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt);
+void device_event_bus_reset();
+
+extern void dcd_event_bus_signal(uint8_t rhport, dcd_eventid_t eid, bool in_isr);
+
+bool dcd_edpt_open_new(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt);
 
 extern hw_endpoint_t *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr);
 
 bool hcd_init(uint8_t rhport);
+
 void hcd_int_enable(uint8_t rhport);
 
 // Call to send data
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer /* user_buf*/, uint16_t total_len);
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
-bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
-void dcd_init_new (uint8_t rhport);
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen);
+
+bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes);
+
+void dcd_init_new(uint8_t rhport);
+
 void dcd_int_enable_new(uint8_t rhport);
 
-void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request);
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *request);
 
 void slavework();
 

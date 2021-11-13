@@ -57,28 +57,33 @@
 
 void rp2040_usb_init(void);
 
-void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len);
+void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len);
+
 bool hw_endpoint_xfer_continue(struct hw_endpoint *ep);
+
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
 
-void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);
-static inline uint32_t _hw_endpoint_buffer_control_get_value32(struct hw_endpoint *ep) {
+void hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);
+
+static inline uint32_t hw_endpoint_buffer_control_get_value32(struct hw_endpoint *ep) {
     return *ep->buffer_control;
 }
-static inline void _hw_endpoint_buffer_control_set_value32(struct hw_endpoint *ep, uint32_t value) {
-    return _hw_endpoint_buffer_control_update32(ep, 0, value);
-}
-static inline void _hw_endpoint_buffer_control_set_mask32(struct hw_endpoint *ep, uint32_t value) {
-    return _hw_endpoint_buffer_control_update32(ep, ~value, value);
-}
-static inline void _hw_endpoint_buffer_control_clear_mask32(struct hw_endpoint *ep, uint32_t value) {
-    return _hw_endpoint_buffer_control_update32(ep, ~value, 0);
+
+static inline void hw_endpoint_buffer_control_set_value32(struct hw_endpoint *ep, uint32_t value) {
+    return hw_endpoint_buffer_control_update32(ep, 0, value);
 }
 
-static inline uintptr_t hw_data_offset(uint8_t *buf)
-{
+static inline void hw_endpoint_buffer_control_set_mask32(struct hw_endpoint *ep, uint32_t value) {
+    return hw_endpoint_buffer_control_update32(ep, ~value, value);
+}
+
+static inline void hw_endpoint_buffer_control_clear_mask32(struct hw_endpoint *ep, uint32_t value) {
+    return hw_endpoint_buffer_control_update32(ep, ~value, 0);
+}
+
+static inline uintptr_t hw_data_offset(uint8_t *buf) {
     // Remove usb base from buffer pointer
-    return (uintptr_t)buf ^ (uintptr_t)usb_dpram;
+    return (uintptr_t) buf ^ (uintptr_t) usb_dpram;
 }
 
 extern const char *ep_dir_string[];

@@ -20,14 +20,14 @@ add_compile_options(-Wall
         )
 
 add_executable(pico_firmware
-#        src/main.c
-#        src/main_spi.c
+        #        src/main.c
+        #        src/main_spi.c
         src/main_spi_tusb.c
-#        src/lib/usb_phy/usb_phy.c
-#        src/lib/usb_pio/pio_usb.c
+        #        src/lib/usb_phy/usb_phy.c
+        #        src/lib/usb_pio/pio_usb.c
         src/lib/messages/messages.c
-#        src/lib/usb_phy/usb_host.c
-#        src/lib/usb_phy/usb_host.h
+        #        src/lib/usb_phy/usb_host.c
+        #        src/lib/usb_phy/usb_host.h
         src/lib/rp2040/dcd_rp2040.c
         src/lib/rp2040/hcd_rp2040.c
         src/lib/rp2040/rp2040_usb.c

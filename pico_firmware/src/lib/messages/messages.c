@@ -54,7 +54,7 @@ void messages_config(void) {
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
     }
 
-    if (get_role() == SPI_ROLE_SLAVE) {
+    if (get_role() == SPI_ROLE_MASTER) {
         printf("--------\n MASTER \n--------\n");
     } else {
         printf("-------\n SLAVE \n-------\n");
@@ -93,6 +93,9 @@ void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t new_flag) {
     }
     uint8_t hdr[3] = {dummy, len, flag};
     spi_write_blocking(spi_default, hdr, 3);
+    if (get_role() == SPI_ROLE_MASTER) {
+        busy_wait_ms(100);
+    }
     spi_write_blocking(spi_default, data, len);
     if (flag & DEBUG_PRINT_AS_HEX) {
         printf("Sent data:\n");
@@ -120,8 +123,6 @@ uint8_t spi_receive_blocking(uint8_t *data) {
     do {
         spi_read_blocking(spi_default, 0, &dummy, 1);
     } while (dummy != 0xff);
-
-    gpio_put(PICO_DEFAULT_LED_PIN, 0);
     spi_read_blocking(spi_default, 0, &len, 1);
     spi_read_blocking(spi_default, 0, &flag, 1);
     for (int i = 0; i < 1000; i++) tight_loop_contents();
