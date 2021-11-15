@@ -27,7 +27,7 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
     /*
      * Forward setup packet to slave and get response from device
      */
-    spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX | (cfg_set ? 0 : RESET_USB));
+    spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX | 0x00); // TODO!
 
     int len = spi_await(bugger, USB_DATA);
 
@@ -48,7 +48,7 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
                     dcd_edpt_xfer_new(rhport, edpt->bEndpointAddress, bugger, 64);
                 }
                 spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN);
-                spi_receive_blocking(bugger);
+                spi_await(bugger, USB_DATA);
             }
             pos += bugger[pos];
         }
@@ -66,7 +66,9 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
 void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr) {
 
     if (((tusb_control_request_t *) usb_dpram->setup_packet)->bRequest == 0x5 /*SET ADDRESS*/) {
-        printf("Setting address\n");
+        printf("Setting address to %d, [%d] %d\n", ((const tusb_control_request_t *) usb_dpram->setup_packet)->wValue,
+               ep_addr,
+               xferred_bytes);
         dcd_edpt0_status_complete(0, (const tusb_control_request_t *) usb_dpram->setup_packet); // Update address
         return;
     }
@@ -77,8 +79,7 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
     bugger[xferred_bytes] = ep_addr;
     spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
 
-    while (true) spi_receive_blocking(bugger);
-    int len = spi_receive_blocking(bugger);
+    int len = spi_await(bugger, USB_DATA);
     dcd_edpt_xfer_new(rhport, ep_addr, bugger, len);
 
 }

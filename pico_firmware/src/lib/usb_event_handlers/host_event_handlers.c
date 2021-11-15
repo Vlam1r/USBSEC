@@ -8,14 +8,14 @@
  * Host events
  */
 
-static uint8_t setup_packet[8];
+static tusb_control_request_t setup_packet;
 static uint8_t attached = false;
 static uint8_t bugger[1000];
 static uint8_t level = 0;
 static uint8_t dev_addr = 0;
 
 void define_setup_packet(uint8_t *setup) {
-    memcpy(setup_packet, setup, 8);
+    memcpy(&setup_packet, setup, 8);
 }
 
 bool print = false;
@@ -34,7 +34,7 @@ void slavework() {
          * Open sent endpoint
          */
         hcd_edpt_open((const tusb_desc_endpoint_t *) bugger);
-        spi_send_blocking(NULL, 0, 0);
+        spi_send_blocking(NULL, 0, USB_DATA);
         slavework();
     } else if (get_flag() & SETUP_DATA) {
         /*
@@ -43,7 +43,10 @@ void slavework() {
         define_setup_packet(bugger);
         if (!attached) return;
         level = 0;
-        hcd_setup_send(0, dev_addr, setup_packet);
+        if (!(get_flag() & RESET_USB)) {
+            spi_send_string("Sending setup wo reset");
+            hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
+        }
         /*if (((tusb_control_request_t *) bugger)->bRequest == 0x5) {
             dev_addr = ((tusb_control_request_t *) bugger)->wValue;
             //assert(dev_addr == 7);
@@ -64,9 +67,12 @@ void slavework() {
 }
 
 void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
+    spi_send_string("ATTACH");
+    if (attached) return;
     level = 0;
     attached = true;
-    hcd_setup_send(rhport, dev_addr, setup_packet);
+    //usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
+    hcd_setup_send(rhport, dev_addr, (const uint8_t *) &setup_packet);
 }
 
 void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
@@ -75,14 +81,17 @@ void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
 }
 
 
-void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
-    uint8_t data[4] = {0xff, xferred_bytes, ep_addr, level};
-    //spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
+void hcd_event_xfer_complete(uint8_t dev_addr_new, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
+    uint8_t data[5] = {0xff, xferred_bytes, setup_packet.wLength, ep_addr, level};
+    spi_send_blocking(data, 5, DEBUG_PRINT_AS_HEX);
+
+    if (setup_packet.wLength == 1) {
+        spi_send_string("LUN REQUEST!!!!!!!!!!!!!!!!");
+    }
 
     if (level == 0) {
         level = 1;
-        uint16_t len = ((tusb_control_request_t *) setup_packet)->wLength;
-        hcd_edpt_xfer(0, 0, 0x80, bugger, len);
+        hcd_edpt_xfer(0, 0, 0x80, bugger, setup_packet.wLength);
     } else if (level == 1) {
         level = 2;
         spi_send_blocking(bugger, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);

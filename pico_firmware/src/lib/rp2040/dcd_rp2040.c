@@ -204,6 +204,8 @@ static void dcd_rp2040_irq_new(void) {
         //spi_send_blocking(data, 1, DEBUG_PRINT_AS_HEX);
     }*/
 
+    printf("Master interrupt: %0#10lx\n", status);
+
     if (status & USB_INTS_SETUP_REQ_BITS) {
         handled |= USB_INTS_SETUP_REQ_BITS;
         uint8_t const *setup = (uint8_t const *) &usb_dpram->setup_packet;

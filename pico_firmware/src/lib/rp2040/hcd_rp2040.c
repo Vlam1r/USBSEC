@@ -100,7 +100,7 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result) 
 static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep) {
     usb_hw_clear->buf_status = bit;
     bool done = hw_endpoint_xfer_continue(ep);
-    if (print) spi_send_string("XFER COMPLETE ");
+    //if (print) spi_send_string("XFER COMPLETE ");
     if (done) {
         hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
     }
@@ -213,6 +213,7 @@ static void hcd_rp2040_irq_new(void) {
 
     if (status & USB_INTS_ERROR_RX_TIMEOUT_BITS) {
         handled |= USB_INTS_ERROR_RX_TIMEOUT_BITS;
+        panic("");
         usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
     }
 
@@ -447,8 +448,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 
     assert(ep);
 
-    if (print) spi_send_string("PASSED ASSERT");
-
     // Control endpoint can change direction 0x00 <-> 0x80
     if (ep_addr != ep->ep_addr) {
         assert(ep_num == 0);
@@ -476,7 +475,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     } else {
         hw_endpoint_xfer_start(ep, buffer, buflen);
     }
-    if (print) spi_send_string("Started");
     return true;
 }
 

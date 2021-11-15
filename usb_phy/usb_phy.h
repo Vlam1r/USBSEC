@@ -8,10 +8,11 @@
 #define DEV_LOWLEVEL_H_
 
 #include "usb_common.h"
-#include "../messages/messages.h"
+#include "../pico_firmware/src/lib/messages/messages.h"
 
 // Struct in which we keep the endpoint configuration
 typedef void (*usb_ep_handler)(uint8_t *buf, uint16_t len);
+
 typedef struct {
     const struct usb_endpoint_descriptor *descriptor;
     usb_ep_handler handler;
@@ -136,8 +137,11 @@ static const unsigned char *descriptor_strings[] = {
 
 // Function prototypes for our device specific endpoint handlers
 void ep0_in_handler(uint8_t *buf, uint16_t len);
+
 void ep0_out_handler(uint8_t *buf, uint16_t len);
+
 void ep1_out_handler(uint8_t *buf, uint16_t len);
+
 void ep2_in_handler(uint8_t *buf, uint16_t len);
 
 // Struct defining the device configuration
@@ -185,8 +189,11 @@ static struct usb_device_configuration dev_config = {
 };
 
 void usb_device_init();
+
 void usb_host_init();
+
 void usb_start_transfer(usb_endpoint_configuration *ep, uint8_t *buf, uint16_t len);
+
 usb_endpoint_configuration *usb_get_endpoint_configuration(uint8_t addr);
 
 // Global device address

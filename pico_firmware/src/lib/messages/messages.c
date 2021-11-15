@@ -21,7 +21,7 @@ uint8_t get_flag() {
 ///
 /// \param data Array to be printed
 /// \param len Array length
-static void print_arr_hex(const uint8_t *data, int len) {
+void print_arr_hex(const uint8_t *data, int len) {
     for (int i = 0; i < len; i++) {
         printf("0x%02x ", data[i]);
         if (i % 8 == 7) {
@@ -140,7 +140,7 @@ uint8_t spi_receive_blocking(uint8_t *data) {
 }
 
 void spi_send_string(char *data) {
-    spi_send_blocking((uint8_t *) data, strlen(data), DEBUG_PRINT_AS_STRING);
+    spi_send_blocking((uint8_t *) data, strlen(data) + 1, DEBUG_PRINT_AS_STRING);
 }
 
 void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag) {

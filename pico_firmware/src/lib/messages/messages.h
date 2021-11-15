@@ -30,6 +30,8 @@ typedef enum {
     SPI_ROLE_SLAVE
 } spi_role;
 
+void print_arr_hex(const uint8_t *data, int len);
+
 void messages_config(void);
 
 void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t flag);

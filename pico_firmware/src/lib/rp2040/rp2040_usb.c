@@ -134,42 +134,42 @@ static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
 static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
 
     if (get_role() == SPI_ROLE_MASTER) {
-        {
-            uint32_t ep_ctrl = *ep->endpoint_control;
+
+        uint32_t ep_ctrl = *ep->endpoint_control;
 
 // always compute and start with buffer 0
-            uint32_t buf_ctrl = prepare_ep_buffer(ep, 0) | USB_BUF_CTRL_SEL;
+        uint32_t buf_ctrl = prepare_ep_buffer(ep, 0) | USB_BUF_CTRL_SEL;
 
 // For now: skip double buffered for Device mode, OUT endpoint since
 // host could send < 64 bytes and cause short packet on buffer0
 // NOTE this could happen to Host mode IN endpoint
-            bool const force_single =
-                    !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
+        bool const force_single =
+                !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
 
-            if (ep->remaining_len && !force_single) {
+        if (ep->remaining_len && !force_single) {
 // Use buffer 1 (double buffered) if there is still data
 // TODO: Isochronous for buffer1 bit-field is different than CBI (control bulk, interrupt)
 
-                buf_ctrl |= prepare_ep_buffer(ep, 1);
+            buf_ctrl |= prepare_ep_buffer(ep, 1);
 
 // Set endpoint control double buffered bit if needed
-                ep_ctrl &= ~EP_CTRL_INTERRUPT_PER_BUFFER;
-                ep_ctrl |= EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER;
-            } else {
+            ep_ctrl &= ~EP_CTRL_INTERRUPT_PER_BUFFER;
+            ep_ctrl |= EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER;
+        } else {
 // Single buffered since 1 is enough
-                ep_ctrl &= ~(EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER);
-                ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
-            }
+            ep_ctrl &= ~(EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER);
+            ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
+        }
 
-            *ep->endpoint_control = ep_ctrl;
+        *ep->endpoint_control = ep_ctrl;
 
-            TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl),
-                   tu_u32_high16(buf_ctrl));
+        TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl),
+               tu_u32_high16(buf_ctrl));
 
 // Finally, write to buffer_control which will trigger the transfer
 // the next time the controller polls this dpram address
-            hw_endpoint_buffer_control_set_value32(ep, buf_ctrl);
-        }
+        hw_endpoint_buffer_control_set_value32(ep, buf_ctrl);
+
         return;
     }
 
@@ -213,6 +213,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     // Finally, write to buffer_control which will trigger the transfer
     // the next time the controller polls this dpram address
     hw_endpoint_buffer_control_set_value32(ep, val);
+
     pico_trace("buffer control (0x%p) <- 0x%x\n", ep->buffer_control, val);
     //print_bufctrl16(val);
 }
@@ -301,10 +302,8 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep) {
       panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
     }*/
 
-    spi_send_string("SYNCING   ");
     // Update EP struct from hardware state
     _hw_endpoint_xfer_sync(ep);
-    spi_send_string("SYNCED    ");
 
     // Now we have synced our state with the hardware. Is there more data to transfer?
     // If we are done then notify tinyusb
