@@ -123,7 +123,6 @@ static void hw_handle_buff_status(void) {
             TU_LOG(3, "Single Buffered: ");
         }
         TU_LOG_HEX(3, ep_ctrl);
-        if (print) spi_send_string("EPX");
         _handle_buff_status_bit(bit, ep);
     }
 
@@ -142,6 +141,10 @@ static void hw_handle_buff_status(void) {
         }
     }
 
+
+    /*uint8_t bg = usb_hw->buf_status;
+    spi_send_blocking(&bg, 1, DEBUG_PRINT_AS_HEX);*/
+
     if (remaining_buffers) {
         spi_send_string("PANIC");
         panic("Unhandled buffer %d\n", remaining_buffers);
@@ -150,12 +153,16 @@ static void hw_handle_buff_status(void) {
 
 static void hw_trans_complete(void) {
     struct hw_endpoint *ep = &epx;
-    assert(ep->active);
+    if (!ep->active) {
+        spi_send_string("SLAVE EPX IS CRACKED");
+        //return;
+    }
 
     if (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS) {
         pico_trace("Sent setup packet\n");
         hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
     } else {
+        spi_send_string("DONT CARE");
         // Don't care. Will handle this in buff status
         return;
     }
@@ -167,7 +174,7 @@ static void hcd_rp2040_irq_new(void) {
     uint32_t handled = 0;
 
     uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
-    //spi_send_string("Slave interrupt");
+    spi_send_string("Slave interrupt");
     spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
 
 
@@ -187,10 +194,12 @@ static void hcd_rp2040_irq_new(void) {
     if (status & USB_INTS_BUFF_STATUS_BITS) {
         handled |= USB_INTS_BUFF_STATUS_BITS;
         TU_LOG(2, "Buffer complete\n");
-        if (print) {
-            spi_send_string("Doing buff");
-        }
+
+        spi_send_string("ENTERING BUGGER");
         hw_handle_buff_status();
+        spi_send_string("LEAVING BUGGER");
+        uint8_t datx[4] = {usb_hw->ints >> 24, usb_hw->ints >> 16, usb_hw->ints >> 8, usb_hw->ints};
+        spi_send_blocking(datx, 4, DEBUG_PRINT_AS_HEX);
     }
 
     if (status & USB_INTS_TRANS_COMPLETE_BITS) {
@@ -249,7 +258,7 @@ static struct hw_endpoint *_next_free_interrupt_ep(void) {
 static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type) {
     struct hw_endpoint *ep = NULL;
 
-    if (transfer_type != TUSB_XFER_CONTROL) { //== TUSB_XFER_INTERRUPT) {
+    if (transfer_type == TUSB_XFER_INTERRUPT) {
         ep = _next_free_interrupt_ep();
         pico_info("Allocate interrupt ep %d\n", ep->interrupt_num);
         assert(ep);
@@ -448,12 +457,13 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 
     // Get appropriate ep. Either EPX or interrupt endpoint
 
-    struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+    struct hw_endpoint *ep = &epx; //get_dev_ep(dev_addr, ep_addr); TODO
+
 
     assert(ep);
 
     // Control endpoint can change direction 0x00 <-> 0x80
-    if (ep_addr != ep->ep_addr) {
+    if (ep_addr != ep->ep_addr /**/ && ep_num == 0) {
         assert(ep_num == 0);
 
         // Direction has flipped on endpoint control so re init it but with same properties

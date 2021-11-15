@@ -15,6 +15,9 @@ static uint8_t level = 0;
 static uint8_t outlen = 0;
 static uint8_t dev_addr = 0;
 
+static tusb_desc_endpoint_t registry[16];
+static uint8_t reg_count = 0;
+
 void define_setup_packet(uint8_t *setup) {
     memcpy(&setup_packet, setup, 8);
 }
@@ -34,7 +37,7 @@ void slavework() {
         /*
          * Open sent endpoint
          */
-        hcd_edpt_open((const tusb_desc_endpoint_t *) bugger);
+        memcpy(&registry[reg_count++], bugger, len);
         spi_send_blocking(NULL, 0, USB_DATA);
         slavework();
     } else if (get_flag() & SETUP_DATA) {
@@ -62,11 +65,12 @@ void slavework() {
         /*
          * Data is copied into buffer
          */
-        print = true;
+        //print = true;
         level = 3;
-        //spi_send_string("USB_DATA!");
-        hcd_edpt_xfer(0, dev_addr, bugger[len - 1], bugger, len - 1);
-        //hcd_edpt_xfer(0, 0, 0x81, bugger, 64);
+        uint8_t reg_idx = bugger[len - 1];
+        hcd_edpt_open(&registry[reg_idx]);
+        hcd_edpt_xfer(0, dev_addr, registry[reg_idx].bEndpointAddress, bugger, len - 1);
+        //hcd_edpt_xfer(0, dev_addr, 0x81, bugger, 64);
     } else {
         slavework();
     }
@@ -93,7 +97,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr_old, uint8_t ep_addr, uint32_t xfe
     if (level == 0) {
         // SETUP
         level = 1;
-        hcd_edpt_xfer(0, dev_addr_old, 0x80, bugger, setup_packet.wLength);
+        hcd_edpt_xfer(0, dev_addr_old, 0x80, bugger, setup_packet.wLength); // Request response
     } else if (level == 1) {
         // DATA
         level = 2;
@@ -111,6 +115,14 @@ void hcd_event_xfer_complete(uint8_t dev_addr_old, uint8_t ep_addr, uint32_t xfe
         // ACK
         spi_send_blocking(bugger, outlen, USB_DATA | DEBUG_PRINT_AS_HEX);
         slavework();
+    } else if (level == 3) {
+        //level++;
+        //hcd_edpt_open(&registry[0]); // TODO HARDEN
+        //hcd_edpt_xfer(0, dev_addr, 0x81, bugger, 0xff);
+        //spi_send_string("DONE");
+        spi_send_blocking(bugger, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
+        slavework();
+
     } else {
         // USB
         spi_send_string("DONE");

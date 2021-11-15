@@ -200,8 +200,6 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
         }
     }
 
-
-
     // Is this the last buffer? Only really matters for host mode. Will trigger
     // the trans complete irq but also stop it polling. We only really care about
     // trans complete for setup packets being sent
@@ -234,6 +232,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
     ep->xferred_len = 0;
     ep->active = true;
     ep->user_buf = buffer;
+
 
     _hw_endpoint_start_next_buffer(ep);
     _hw_endpoint_lock_update(ep, -1);
