@@ -23,6 +23,7 @@ void slavework() {
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
     int len = spi_receive_blocking(bugger);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);
+    print = true;
 
     if (get_flag() & RESET_USB) {
         usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
@@ -34,6 +35,7 @@ void slavework() {
          */
         define_setup_packet(bugger);
         if (!attached) return;
+        //level = 0;
         hcd_setup_send(0, 0, setup_packet);
     } else if (get_flag() & USB_DATA) {
         /*
@@ -61,14 +63,14 @@ void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
 
 
 void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
-    uint8_t data[2] = {result, xferred_bytes};
+    uint8_t data[4] = {0xff, xferred_bytes, ep_addr, level};
     if (print)
-        spi_send_blocking(data, 2, DEBUG_PRINT_AS_HEX);
+        spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
 
     if (level == 0) {
         level = 1;
         uint16_t len = ((tusb_control_request_t *) setup_packet)->wLength;
-        hcd_edpt_xfer(0, 0, 0x80 | ep_addr, bugger, len);
+        hcd_edpt_xfer(0, 0, 0x80, bugger, len);
     } else if (level == 1) {
         level = 2;
         spi_send_blocking(bugger, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);

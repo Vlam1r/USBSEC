@@ -48,7 +48,7 @@ target_link_libraries(pico_firmware
         )
 
 pico_enable_stdio_usb(pico_firmware 1)
-pico_enable_stdio_uart(pico_firmware 0)
+pico_enable_stdio_uart(pico_firmware 1)
 
 pico_add_extra_outputs(pico_firmware)
 

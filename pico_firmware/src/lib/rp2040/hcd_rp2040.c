@@ -447,7 +447,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     // sie ctrl registers. Otherwise interrupt ep registers should
     // already be configured
     if (ep == &epx) {
-        _hw_endpoint_xfer_start(ep, buffer, buflen);
+        hw_endpoint_xfer_start(ep, buffer, buflen);
 
         // That has set up buffer control, endpoint control etc
         // for host we have to initiate the transfer
@@ -460,7 +460,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 
         usb_hw->sie_ctrl = flags;
     } else {
-        _hw_endpoint_xfer_start(ep, buffer, buflen);
+        hw_endpoint_xfer_start(ep, buffer, buflen);
     }
 
     return true;
