@@ -18,6 +18,8 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
          * If request is SET_ADDRESS we do not want to pass it on.
          * Instead, it gets handled here and slave keeps communicating to device on dev_addr 0
          */
+        //spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
+        //assert(spi_receive_blocking(bugger) == 0);
         dcd_edpt_xfer_new(rhport, 0x80, NULL, 0); // ACK
         return;
     }
@@ -45,6 +47,8 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
                 if (edpt->bEndpointAddress == 2) {
                     dcd_edpt_xfer_new(rhport, edpt->bEndpointAddress, bugger, 64);
                 }
+                spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN);
+                spi_receive_blocking(bugger);
             }
             pos += bugger[pos];
         }

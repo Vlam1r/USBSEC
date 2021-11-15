@@ -301,8 +301,10 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep) {
       panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
     }*/
 
+    spi_send_string("SYNCING   ");
     // Update EP struct from hardware state
     _hw_endpoint_xfer_sync(ep);
+    spi_send_string("SYNCED    ");
 
     // Now we have synced our state with the hardware. Is there more data to transfer?
     // If we are done then notify tinyusb
