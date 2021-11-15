@@ -45,7 +45,7 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
                 if (edpt->bEndpointAddress == 2) {
                     dcd_edpt_xfer_new(rhport, edpt->bEndpointAddress, bugger, 64);
                 }
-                spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN);
+                spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN); // TODO ONLY IF INTERRUPT
                 spi_await(bugger, USB_DATA);
             }
             pos += bugger[pos];
@@ -74,13 +74,41 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
     }
 
     if (ep_addr == 0 || ep_addr == 0x80) return;
+
+
+    printf("+-----\n|Completed transfer on %d\n+-----\n", ep_addr);
+
+    if (ep_addr & 0x80) return;
     if (xferred_bytes == 0 || result != 0) return;
 
-    bugger[xferred_bytes] = ep_addr;
-    spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
+    dcd_edpt_xfer_new(rhport, ep_addr, bugger, 64);
 
-    int len = spi_await(bugger, USB_DATA);
-    dcd_edpt_xfer_new(rhport, ep_addr, bugger, len);
+    // TODO HARDEN THIS INTERACTION
+    /*bugger[xferred_bytes] = 1;
+    spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
+    spi_await(bugger, USB_DATA);
+    memset(bugger, 0, 64);
+    bugger[64] = 0;
+    spi_send_blocking(bugger, 64 + 1, USB_DATA);
+    int len = spi_await(bugger, USB_DATA);*/
+
+    spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
+    spi_await(bugger, USB_DATA);
+    int idx[2] = {0, 1};
+    bool gottem = false;
+    while (!gottem) {
+        gottem = true;
+        for (int i = 0; i < 2; i++) {
+            memset(bugger, 0, 64);
+            bugger[64] = 0;
+            spi_send_blocking(bugger, 64 + 1, USB_DATA);
+        }
+        int len = spi_await(bugger, USB_DATA);
+        if (len > 0) {
+            gottem = false;
+            dcd_edpt_xfer_new(rhport, 0x81, bugger, len); //
+        }
+    }
 
 }
 
