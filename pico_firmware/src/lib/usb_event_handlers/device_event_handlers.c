@@ -18,8 +18,6 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
          * If request is SET_ADDRESS we do not want to pass it on.
          * Instead, it gets handled here and slave keeps communicating to device on dev_addr 0
          */
-        //spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
-        //assert(spi_receive_blocking(bugger) == 0);
         dcd_edpt_xfer_new(rhport, 0x80, NULL, 0); // ACK
         return;
     }
@@ -66,6 +64,8 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
 void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr) {
 
     if (((tusb_control_request_t *) usb_dpram->setup_packet)->bRequest == 0x5 /*SET ADDRESS*/) {
+        //spi_send_blocking(&usb_dpram->setup_packet, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
+        //assert(spi_await(bugger, USB_DATA) == 0);
         printf("Setting address to %d, [%d] %d\n", ((const tusb_control_request_t *) usb_dpram->setup_packet)->wValue,
                ep_addr,
                xferred_bytes);

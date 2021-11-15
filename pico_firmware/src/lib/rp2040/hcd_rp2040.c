@@ -167,7 +167,7 @@ static void hcd_rp2040_irq_new(void) {
     uint32_t handled = 0;
 
     uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
-    spi_send_string("Slave interrupt");
+    //spi_send_string("Slave interrupt");
     spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
 
 
@@ -213,8 +213,12 @@ static void hcd_rp2040_irq_new(void) {
 
     if (status & USB_INTS_ERROR_RX_TIMEOUT_BITS) {
         handled |= USB_INTS_ERROR_RX_TIMEOUT_BITS;
+        spi_send_string("---RX TIMEOUT---");
         panic("");
-        usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
+
+        //usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
+        //hcd_event_device_remove(0, 0);
+        usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
     }
 
     if (status & USB_INTS_ERROR_DATA_SEQ_BITS) {
