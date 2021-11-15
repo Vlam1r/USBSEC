@@ -43,4 +43,6 @@ void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag);
 
 uint8_t get_flag();
 
+int spi_await(uint8_t *data, uint8_t cond);
+
 #endif //PICO_FIRMWARE_MESSAGES_H

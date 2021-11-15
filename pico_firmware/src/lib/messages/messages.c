@@ -147,3 +147,14 @@ void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag) {
     bugger = data;
     multicore_fifo_push_blocking((len << 8) | flag);
 }
+
+int spi_await(uint8_t *data, uint8_t cond) {
+    int len;
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "LoopDoesntUseConditionVariableInspection"
+    do {
+        len = spi_receive_blocking(data);
+    } while ((flag & cond) != cond);
+#pragma clang diagnostic pop
+    return len;
+}
