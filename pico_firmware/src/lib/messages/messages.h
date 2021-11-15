@@ -20,6 +20,7 @@ typedef enum {
     USB_DATA = 0x1,
     SETUP_DATA = 0x2,
     RESET_USB = 0x4,
+    EDPT_OPEN = 0x8,
     DEBUG_PRINT_AS_STRING = 0x40,
     DEBUG_PRINT_AS_HEX = 0x80
 } msg_type;

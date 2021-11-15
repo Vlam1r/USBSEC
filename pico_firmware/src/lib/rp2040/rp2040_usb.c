@@ -140,7 +140,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     // For now: skip double buffered for Device mode, OUT endpoint since
     // host could send < 64 bytes and cause short packet on buffer0
     // NOTE this could happen to Host mode IN endpoint
-    bool const force_single = !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
+    bool const force_single = true; //!(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
 
     if (ep->remaining_len && !force_single) {
         // Use buffer 1 (double buffered) if there is still data
@@ -250,8 +250,10 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep) {
       panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
     }*/
 
+    spi_send_string("SYNCING   ");
     // Update EP struct from hardware state
     _hw_endpoint_xfer_sync(ep);
+    spi_send_string("SYNCED    ");
 
     // Now we have synced our state with the hardware. Is there more data to transfer?
     // If we are done then notify tinyusb

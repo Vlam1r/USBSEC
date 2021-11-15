@@ -98,6 +98,8 @@ bool hcd_init(uint8_t rhport);
 
 void hcd_int_enable(uint8_t rhport);
 
+bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc);
+
 // Call to send data
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer /* user_buf*/, uint16_t total_len);
 

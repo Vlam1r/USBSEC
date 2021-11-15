@@ -62,7 +62,9 @@ enum {
                     USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS
 };
 
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const *ep_desc);
+bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc);
+
+extern bool print;
 
 struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr) {
     uint8_t num = tu_edpt_number(ep_addr);
@@ -98,6 +100,7 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result) 
 static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep) {
     usb_hw_clear->buf_status = bit;
     bool done = hw_endpoint_xfer_continue(ep);
+    if (print) spi_send_string("XFER COMPLETE ");
     if (done) {
         hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
     }
@@ -120,7 +123,7 @@ static void hw_handle_buff_status(void) {
             TU_LOG(3, "Single Buffered: ");
         }
         TU_LOG_HEX(3, ep_ctrl);
-
+        if (print) spi_send_string("EPX");
         _handle_buff_status_bit(bit, ep);
     }
 
@@ -140,6 +143,7 @@ static void hw_handle_buff_status(void) {
     }
 
     if (remaining_buffers) {
+        spi_send_string("PANIC");
         panic("Unhandled buffer %d\n", remaining_buffers);
     }
 }
@@ -157,7 +161,6 @@ static void hw_trans_complete(void) {
     }
 }
 
-extern bool print;
 
 static void hcd_rp2040_irq_new(void) {
     uint32_t status = usb_hw->ints;
@@ -183,12 +186,18 @@ static void hcd_rp2040_irq_new(void) {
     if (status & USB_INTS_BUFF_STATUS_BITS) {
         handled |= USB_INTS_BUFF_STATUS_BITS;
         TU_LOG(2, "Buffer complete\n");
+        if (print) {
+            spi_send_string("Doing buff");
+        }
         hw_handle_buff_status();
     }
 
     if (status & USB_INTS_TRANS_COMPLETE_BITS) {
         handled |= USB_INTS_TRANS_COMPLETE_BITS;
         usb_hw_clear->sie_status = USB_SIE_STATUS_TRANS_COMPLETE_BITS;
+        if (print) {
+            spi_send_string("Doing setup");
+        }
         TU_LOG(2, "Transfer complete\n");
         hw_trans_complete();
     }
@@ -234,7 +243,7 @@ static struct hw_endpoint *_next_free_interrupt_ep(void) {
 static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type) {
     struct hw_endpoint *ep = NULL;
 
-    if (transfer_type == TUSB_XFER_INTERRUPT) {
+    if (transfer_type != TUSB_XFER_CONTROL) { //== TUSB_XFER_INTERRUPT) {
         ep = _next_free_interrupt_ep();
         pico_info("Allocate interrupt ep %d\n", ep->interrupt_num);
         assert(ep);
@@ -405,16 +414,16 @@ void hcd_int_disable(uint8_t rhport) {
 // Endpoint API
 //--------------------------------------------------------------------+
 
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const *ep_desc) {
-    (void) rhport;
+bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc) {
 
     pico_trace("hcd_edpt_open dev_addr %d, ep_addr %d\n", dev_addr, ep_desc->bEndpointAddress);
 
     // Allocated differently based on if it's an interrupt endpoint or not
     struct hw_endpoint *ep = _hw_endpoint_allocate(ep_desc->bmAttributes.xfer);
+    assert(ep);
 
     _hw_endpoint_init(ep,
-                      dev_addr,
+                      0,
                       ep_desc->bEndpointAddress,
                       ep_desc->wMaxPacketSize.size,
                       ep_desc->bmAttributes.xfer,
@@ -432,8 +441,12 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     tusb_dir_t const ep_dir = tu_edpt_dir(ep_addr);
 
     // Get appropriate ep. Either EPX or interrupt endpoint
+
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+
     assert(ep);
+
+    if (print) spi_send_string("PASSED ASSERT");
 
     // Control endpoint can change direction 0x00 <-> 0x80
     if (ep_addr != ep->ep_addr) {
@@ -447,7 +460,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     // sie ctrl registers. Otherwise interrupt ep registers should
     // already be configured
     if (ep == &epx) {
-        _hw_endpoint_xfer_start(ep, buffer, buflen);
+        hw_endpoint_xfer_start(ep, buffer, buflen);
 
         // That has set up buffer control, endpoint control etc
         // for host we have to initiate the transfer
@@ -460,9 +473,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 
         usb_hw->sie_ctrl = flags;
     } else {
-        _hw_endpoint_xfer_start(ep, buffer, buflen);
+        hw_endpoint_xfer_start(ep, buffer, buflen);
     }
-
+    if (print) spi_send_string("Started");
     return true;
 }
 
