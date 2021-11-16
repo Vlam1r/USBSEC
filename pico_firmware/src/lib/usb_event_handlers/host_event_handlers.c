@@ -127,15 +127,20 @@ void hcd_event_xfer_complete(uint8_t dev_addr_old, uint8_t ep_addr, uint32_t xfe
             /*
              * Input endpoint
              */
-            event_t e;
+            /*event_t e;
             e.length = xferred_bytes + 1;
             assert(xferred_bytes < 256);
             memcpy(e.payload, bugger, xferred_bytes);
             e.payload[xferred_bytes] = ep_addr;
-            insert_into_event_queue(&e);
-            hcd_edpt_xfer(0, dev_addr, ep_addr, bugger, 0);
+            insert_into_event_queue(&e);*/
+            spi_send_blocking(bugger, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
+            return;
+        } else {
+            /*
+             * Output endpoint - going idle and waiting for IN polling
+             */
+            spi_send_blocking(NULL, 0, GOING_IDLE);
         }
-        spi_send_blocking(NULL, 0, GOING_IDLE);
         //slavework();
 
     } else {

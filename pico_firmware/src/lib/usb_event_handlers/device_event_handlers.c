@@ -82,7 +82,6 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
     if (ep_addr & 0x80) return;
     if (xferred_bytes == 0 || result != 0) return;
 
-    dcd_edpt_xfer_new(rhport, ep_addr, bugger, 64);
 
     // TODO HARDEN THIS INTERACTION
     /*bugger[xferred_bytes] = 1;
@@ -96,26 +95,38 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
     bugger[xferred_bytes] = 1; //TODO
     spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
     spi_await(bugger, GOING_IDLE);
+    trigger_spi_irq();
 
+    const tusb_desc_endpoint_t *edpt = get_first_in_registry();
+    for (int i = 0; i < 2; i++, edpt = get_next_in_registry(edpt)) {
+        if (!(edpt->bEndpointAddress & 0x80)) {
+            /*
+             * Skip OUT endpoints as we want to get data into host.
+             */
+            continue;
+        }
+        while (true) {
+            memset(bugger, 0, 64);
+            bugger[64] = i;
+            printf("Poll %d [0x%x]\n", i, edpt->bEndpointAddress);
+            spi_send_blocking(bugger, 64 + 1, USB_DATA);
+
+            printf("Waiting idle \n");
+            int len = spi_await_with_timeout(bugger, USB_DATA, 100000);
+            if (len == 65535) {
+                break;
+            }
+            dcd_edpt_xfer_new(rhport, edpt->bEndpointAddress, bugger, len);
+            trigger_spi_irq();
+        }
+    }
+
+    dcd_edpt_xfer_new(rhport, ep_addr, bugger, 64);
+/*
     bool gottem = false;
     while (!gottem) {
         gottem = true;
-        const tusb_desc_endpoint_t *edpt = get_first_in_registry();
-        for (int i = 0; i < 2; i++, edpt = get_next_in_registry(edpt)) {
-            if (!(edpt->bEndpointAddress & 0x80)) {
-                /*
-                 * Skip OUT endpoints as we want to get data into host.
-                 */
-                continue;
-            }
-            memset(bugger, 0, 64);
-            bugger[64] = i;
-            printf("Poll %d [%d]\n", i, edpt->bEndpointAddress);
-            trigger_spi_irq();
-            spi_send_blocking(bugger, 64 + 1, USB_DATA);
-            printf("Waiting idle \n");
-            spi_await(bugger, GOING_IDLE);
-        }
+
         printf("Endpoint iteration done \n");
         trigger_spi_irq();
         spi_send_blocking(NULL, 0, EVENTS);
@@ -126,7 +137,7 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
             int len = spi_receive_blocking(bugger);
             dcd_edpt_xfer_new(rhport, bugger[len - 1], bugger, len - 1);
         }
-    }
+    }*/
 
 }
 

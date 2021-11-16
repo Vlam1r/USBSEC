@@ -54,6 +54,8 @@ uint16_t get_flag();
 
 int spi_await(uint8_t *data, uint16_t cond);
 
+int spi_await_with_timeout(uint8_t *data, uint16_t cond, uint64_t timeout_us_new);
+
 void set_spi_pin_handler(void_func_t fun);
 
 void trigger_spi_irq(void);

@@ -11,6 +11,7 @@ static const uint8_t *bugger;
 static uint16_t flag;
 static uint8_t dummy = 0xff;
 void_func_t handler = NULL;
+static uint64_t timeout_us = UINT64_MAX;
 
 void set_spi_pin_handler(void_func_t fun) {
     handler = fun;
@@ -157,7 +158,12 @@ uint16_t spi_receive_blocking(uint8_t *data) {
     } else {
         printf("Waiting for header\n");
     }*/
+    uint64_t start_time = time_us_64();
     do {
+        if (time_us_64() - start_time > timeout_us) {
+            printf("%ld -> %ld | %ld\n", time_us_64(), start_time, timeout_us);
+            return -1;
+        }
         spi_read_blocking(spi_default, 0, &dummy, 1);
     } while (dummy != 0xff);
     uint8_t hdr[4];
@@ -182,13 +188,21 @@ void spi_send_string(char *data) {
     spi_send_blocking((uint8_t *) data, strlen(data) + 1, DEBUG_PRINT_AS_STRING);
 }
 
-int spi_await(uint8_t *data, uint16_t cond) {
+
+int spi_await_with_timeout(uint8_t *data, uint16_t cond, uint64_t timeout_us_new) {
     int len;
+    timeout_us = timeout_us_new;
+    printf("TIMEOUT SET TO %ld\n", timeout_us);
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "LoopDoesntUseConditionVariableInspection"
     do {
         len = spi_receive_blocking(data);
+        if (len == -1) return len;
     } while ((flag & cond) != cond);
 #pragma clang diagnostic pop
     return len;
+}
+
+int spi_await(uint8_t *data, uint16_t cond) {
+    return spi_await_with_timeout(data, cond, UINT64_MAX);
 }
