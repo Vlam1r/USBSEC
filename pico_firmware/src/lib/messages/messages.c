@@ -132,14 +132,13 @@ uint16_t spi_receive_blocking(uint8_t *data) {
     } else {
         printf("Waiting for header\n");
     }*/
-    printf("Waiting for 0xff\n");
     do {
         spi_read_blocking(spi_default, 0, &dummy, 1);
     } while (dummy != 0xff);
-    spi_read16_blocking(spi_default, 0, &len, 1);
-    printf("Len: %d\n", len);
-    spi_read16_blocking(spi_default, 0, &flag, 1);
-    printf("Flg: %d\n", flag);
+    uint8_t hdr[4];
+    spi_read_blocking(spi_default, 0, hdr, 4);
+    len = (hdr[0] << 8) + hdr[1];
+    flag = (hdr[2] << 8) + hdr[3];
     for (int i = 0; i < 1000; i++) tight_loop_contents();
     spi_read_blocking(spi_default, 0, data, len & 0xFF);
     if (flag & DEBUG_PRINT_AS_HEX) {
