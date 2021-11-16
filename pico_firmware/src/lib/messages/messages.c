@@ -39,11 +39,18 @@ void print_arr_hex(const uint8_t *data, int len) {
 }
 
 static void gpio_irq(uint pin, uint32_t event) {
-    if (get_role() == SPI_ROLE_SLAVE) {
-        if (handler != NULL) {
-            spi_send_blocking(NULL, 0, 0);
-            handler();
-        }
+    switch (pin) {
+        case GPIO_SLAVE_IRQ_PIN:
+            assert(event == GPIO_IRQ_EDGE_RISE);
+            if (get_role() == SPI_ROLE_SLAVE) {
+                if (handler != NULL) {
+                    spi_send_blocking(NULL, 0, 0);
+                    handler();
+                }
+            }
+            break;
+        default:
+            break;
     }
 }
 

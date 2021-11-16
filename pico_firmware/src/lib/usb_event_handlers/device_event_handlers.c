@@ -25,7 +25,7 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
     /*
      * Forward setup packet to slave and get response from device
      */
-    spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX | 0x00); // TODO!
+    spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
 
     int len = spi_await(bugger, USB_DATA);
 

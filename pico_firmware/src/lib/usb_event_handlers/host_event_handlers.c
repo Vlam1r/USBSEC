@@ -28,9 +28,6 @@ void slavework() {
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
     int len = spi_receive_blocking(bugger);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);
-    spi_send_blocking(bugger, 8, DEBUG_PRINT_AS_HEX);
-
-    if (len == 8) gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
     if (get_flag() & RESET_USB) {
         usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
