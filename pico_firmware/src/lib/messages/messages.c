@@ -8,12 +8,17 @@
 
 static const uint8_t *bugger;
 
-static uint8_t flag;
+static uint16_t flag;
 static uint8_t dummy = 0xff;
+void_func_t handler = NULL;
+
+void set_spi_pin_handler(void_func_t fun) {
+    handler = fun;
+}
 
 /// Retreive current flag
 /// \returns Flag set by SPI transmission
-uint8_t get_flag() {
+uint16_t get_flag(void) {
     return flag;
 }
 
@@ -33,25 +38,33 @@ void print_arr_hex(const uint8_t *data, int len) {
     }
 }
 
-_Noreturn static void core1_main() {
-    while (true) {
-        uint32_t hdr = multicore_fifo_pop_blocking();
-        spi_send_blocking(bugger, hdr >> 8, hdr & 0xFF);
+static void gpio_irq(uint pin, uint32_t event) {
+    if (get_role() == SPI_ROLE_SLAVE) {
+        if (handler != NULL) {
+            spi_send_blocking(NULL, 0, 0);
+            handler();
+        }
     }
+}
+
+void trigger_spi_irq(void) {
+    gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
+    spi_receive_blocking(NULL);
+    gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
 }
 
 /// Setup master/slave SPI
 ///
 void messages_config(void) {
-    multicore_launch_core1(core1_main);
-
     gpio_init(GPIO_MASTER_SELECT_PIN);
     gpio_set_dir(GPIO_MASTER_SELECT_PIN, GPIO_IN);
 
     gpio_init(GPIO_SLAVE_IRQ_PIN);
-    gpio_set_dir(GPIO_SLAVE_IRQ_PIN, (get_role() == SPI_ROLE_MASTER) ? GPIO_IN : GPIO_OUT);
-    if (get_role() == SPI_ROLE_SLAVE) {
+    gpio_set_dir(GPIO_SLAVE_IRQ_PIN, (get_role() == SPI_ROLE_SLAVE) ? GPIO_IN : GPIO_OUT);
+    if (get_role() == SPI_ROLE_MASTER) {
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
+    } else {
+        gpio_set_irq_enabled_with_callback(GPIO_SLAVE_IRQ_PIN, GPIO_IRQ_EDGE_RISE, true, gpio_irq);
     }
 
     if (get_role() == SPI_ROLE_MASTER) {
@@ -84,15 +97,14 @@ spi_role get_role(void) {
 /// \param data Array to be sent
 /// \param len Length to be sent
 /// \param new_flag New flag to be set on both master and slave
-void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t new_flag) {
+void spi_send_blocking(const uint8_t *data, uint16_t len, uint16_t new_flag) {
     flag = new_flag;
-    assert(len < 255);
-    if (get_role() == SPI_ROLE_SLAVE) {
+    /*if (get_role() == SPI_ROLE_SLAVE) {
         printf("Setting irq pin high\n");
         gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
-    }
-    uint8_t hdr[3] = {dummy, len, flag};
-    spi_write_blocking(spi_default, hdr, 3);
+    }*/
+    uint8_t hdr[5] = {dummy, len >> 8, len, flag >> 8, flag};
+    spi_write_blocking(spi_default, hdr, 5);
     if (get_role() == SPI_ROLE_MASTER) {
         busy_wait_ms(100);
     }
@@ -105,26 +117,29 @@ void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t new_flag) {
         printf((char *) data);
         printf("\n");
     }
-    if (get_role() == SPI_ROLE_SLAVE) {
+    /*if (get_role() == SPI_ROLE_SLAVE) {
         printf("Setting irq pin low\n");
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
-    }
+    }*/
 }
 
-uint8_t spi_receive_blocking(uint8_t *data) {
-    uint8_t len = 0;
-    if (get_role() == SPI_ROLE_MASTER) {
+uint16_t spi_receive_blocking(uint8_t *data) {
+    uint16_t len = 0;
+    /*if (get_role() == SPI_ROLE_MASTER) {
         while (gpio_get(GPIO_SLAVE_IRQ_PIN) == 0) {
             tight_loop_contents();
         }
     } else {
         printf("Waiting for header\n");
-    }
+    }*/
+    printf("Waiting for 0xff\n");
     do {
         spi_read_blocking(spi_default, 0, &dummy, 1);
     } while (dummy != 0xff);
-    spi_read_blocking(spi_default, 0, &len, 1);
-    spi_read_blocking(spi_default, 0, &flag, 1);
+    spi_read16_blocking(spi_default, 0, &len, 1);
+    printf("Len: %d\n", len);
+    spi_read16_blocking(spi_default, 0, &flag, 1);
+    printf("Flg: %d\n", flag);
     for (int i = 0; i < 1000; i++) tight_loop_contents();
     spi_read_blocking(spi_default, 0, data, len & 0xFF);
     if (flag & DEBUG_PRINT_AS_HEX) {
@@ -143,12 +158,7 @@ void spi_send_string(char *data) {
     spi_send_blocking((uint8_t *) data, strlen(data) + 1, DEBUG_PRINT_AS_STRING);
 }
 
-void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag) {
-    bugger = data;
-    multicore_fifo_push_blocking((len << 8) | flag);
-}
-
-int spi_await(uint8_t *data, uint8_t cond) {
+int spi_await(uint8_t *data, uint16_t cond) {
     int len;
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "LoopDoesntUseConditionVariableInspection"

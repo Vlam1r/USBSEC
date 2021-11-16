@@ -91,22 +91,28 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
     bugger[64] = 0;
     spi_send_blocking(bugger, 64 + 1, USB_DATA);
     int len = spi_await(bugger, USB_DATA);*/
-
+    bugger[xferred_bytes] = 1;
     spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
     spi_await(bugger, USB_DATA);
-    int idx[2] = {0, 1};
+    printf("Polling start");
     bool gottem = false;
     while (!gottem) {
         gottem = true;
         for (int i = 0; i < 2; i++) {
             memset(bugger, 0, 64);
-            bugger[64] = 0;
+            bugger[64] = i;
+            printf("Poll %d", i);
+            trigger_spi_irq();
             spi_send_blocking(bugger, 64 + 1, USB_DATA);
         }
-        int len = spi_await(bugger, USB_DATA);
-        if (len > 0) {
+        trigger_spi_irq();
+        spi_send_blocking(NULL, 0, EVENTS);
+        spi_receive_blocking(bugger);
+        int count = bugger[0];
+        while (count--) {
             gottem = false;
-            dcd_edpt_xfer_new(rhport, 0x81, bugger, len); //
+            int len = spi_receive_blocking(bugger);
+            dcd_edpt_xfer_new(rhport, bugger[len - 1], bugger, len - 1);
         }
     }
 

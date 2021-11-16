@@ -28,6 +28,9 @@ void slavework() {
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
     int len = spi_receive_blocking(bugger);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);
+    spi_send_blocking(bugger, 8, DEBUG_PRINT_AS_HEX);
+
+    if (len == 8) gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
     if (get_flag() & RESET_USB) {
         usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
@@ -49,39 +52,36 @@ void slavework() {
         level = 0;
 
         if (!(get_flag() & RESET_USB)) {
-            /*if (setup_packet.wLength == 1) {
-                spi_send_blocking(&bugger[100], 1, USB_DATA | DEBUG_PRINT_AS_HEX);
-                slavework();
-                return;
-            }*/
             hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
         }
-        /*if (((tusb_control_request_t *) bugger)->bRequest == 0x5) {
-            dev_addr = ((tusb_control_request_t *) bugger)->wValue;
-            //assert(dev_addr == 7);
-            //gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        }*/
     } else if (get_flag() & USB_DATA) {
         /*
          * Data is copied into buffer
          */
-        //print = true;
         level = 3;
         uint8_t reg_idx = bugger[len - 1];
         hcd_edpt_open(&registry[reg_idx]);
         hcd_edpt_xfer(0, dev_addr, registry[reg_idx].bEndpointAddress, bugger, len - 1);
-        //hcd_edpt_xfer(0, dev_addr, 0x81, bugger, 64);
+    } else if (get_flag() & EVENTS) {
+        /*
+         * Handle event queue
+         */
+        uint8_t event_count = queue_size();
+        spi_send_blocking(&event_count, 1, USB_DATA | DEBUG_PRINT_AS_HEX);
+        while (event_count--) {
+            event_t *e = get_from_event_queue();
+            spi_send_blocking((const uint8_t *) e, sizeof(event_t), USB_DATA);
+        }
     } else {
         slavework();
     }
 }
 
 void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
-    spi_send_string("ATTACH");
     if (attached) return;
     level = 0;
     attached = true;
-    //usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
+    set_spi_pin_handler(slavework);
     hcd_setup_send(rhport, dev_addr, (const uint8_t *) &setup_packet);
 }
 
@@ -120,8 +120,16 @@ void hcd_event_xfer_complete(uint8_t dev_addr_old, uint8_t ep_addr, uint32_t xfe
         //hcd_edpt_open(&registry[0]); // TODO HARDEN
         //hcd_edpt_xfer(0, dev_addr, 0x81, bugger, 0xff);
         //spi_send_string("DONE");
-        spi_send_blocking(bugger, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
-        slavework();
+        //bugger[xferred_bytes] = ep_addr;
+        //spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
+        if (!(ep_addr & 0x80)) return;
+        event_t e;
+        e.length = xferred_bytes + 1;
+        assert(xferred_bytes < 256);
+        memcpy(e.payload, bugger, xferred_bytes);
+        e.payload[xferred_bytes] = ep_addr;
+        insert_into_event_queue(&e);
+        //slavework();
 
     } else {
         // USB

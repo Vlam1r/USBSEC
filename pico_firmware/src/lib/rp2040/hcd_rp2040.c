@@ -162,7 +162,6 @@ static void hw_trans_complete(void) {
         pico_trace("Sent setup packet\n");
         hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
     } else {
-        spi_send_string("DONT CARE");
         // Don't care. Will handle this in buff status
         return;
     }
@@ -174,8 +173,8 @@ static void hcd_rp2040_irq_new(void) {
     uint32_t handled = 0;
 
     uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
-    spi_send_string("Slave interrupt");
-    spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
+    //spi_send_string("Slave interrupt");
+    //spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
 
 
     if (status & USB_INTS_HOST_CONN_DIS_BITS) {
@@ -195,19 +194,13 @@ static void hcd_rp2040_irq_new(void) {
         handled |= USB_INTS_BUFF_STATUS_BITS;
         TU_LOG(2, "Buffer complete\n");
 
-        spi_send_string("ENTERING BUGGER");
         hw_handle_buff_status();
-        spi_send_string("LEAVING BUGGER");
-        uint8_t datx[4] = {usb_hw->ints >> 24, usb_hw->ints >> 16, usb_hw->ints >> 8, usb_hw->ints};
-        spi_send_blocking(datx, 4, DEBUG_PRINT_AS_HEX);
     }
 
     if (status & USB_INTS_TRANS_COMPLETE_BITS) {
         handled |= USB_INTS_TRANS_COMPLETE_BITS;
         usb_hw_clear->sie_status = USB_SIE_STATUS_TRANS_COMPLETE_BITS;
-        if (print) {
-            spi_send_string("Doing setup");
-        }
+
         TU_LOG(2, "Transfer complete\n");
         hw_trans_complete();
     }
@@ -234,10 +227,12 @@ static void hcd_rp2040_irq_new(void) {
         usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
         TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(*epx.buffer_control),
                tu_u32_high16(*epx.buffer_control));
+        spi_send_string("---DATA SEQ---");
         panic("Data Seq Error \n");
     }
 
     if (status ^ handled) {
+        spi_send_string("---UNHANDLED---");
         panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
     }
 }
