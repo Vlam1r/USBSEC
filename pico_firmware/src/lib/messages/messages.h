@@ -34,9 +34,9 @@ void print_arr_hex(const uint8_t *data, int len);
 
 void messages_config(void);
 
-void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t flag);
+void spi_send_blocking(const uint8_t *data, uint16_t len, uint16_t new_flag);
 
-uint8_t spi_receive_blocking(uint8_t *data);
+uint16_t spi_receive_blocking(uint8_t *data);
 
 void spi_send_string(char *data);
 
@@ -44,7 +44,7 @@ spi_role get_role(void);
 
 void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag);
 
-uint8_t get_flag();
+uint16_t get_flag();
 
 int spi_await(uint8_t *data, uint8_t cond);
 

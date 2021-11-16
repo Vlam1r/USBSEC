@@ -8,12 +8,12 @@
 
 static const uint8_t *bugger;
 
-static uint8_t flag;
+static uint16_t flag;
 static uint8_t dummy = 0xff;
 
 /// Retreive current flag
 /// \returns Flag set by SPI transmission
-uint8_t get_flag() {
+uint16_t get_flag() {
     return flag;
 }
 
@@ -84,15 +84,15 @@ spi_role get_role(void) {
 /// \param data Array to be sent
 /// \param len Length to be sent
 /// \param new_flag New flag to be set on both master and slave
-void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t new_flag) {
+void spi_send_blocking(const uint8_t *data, uint16_t len, uint16_t new_flag) {
     flag = new_flag;
     assert(len < 255);
-    if (get_role() == SPI_ROLE_SLAVE) {
+    /*if (get_role() == SPI_ROLE_SLAVE) {
         printf("Setting irq pin high\n");
         gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
-    }
-    uint8_t hdr[3] = {dummy, len, flag};
-    spi_write_blocking(spi_default, hdr, 3);
+    }*/
+    uint8_t hdr[5] = {dummy, len >> 8, len, flag >> 8, flag};
+    spi_write_blocking(spi_default, hdr, 5);
     if (get_role() == SPI_ROLE_MASTER) {
         busy_wait_ms(100);
     }
@@ -105,26 +105,28 @@ void spi_send_blocking(const uint8_t *data, uint8_t len, uint8_t new_flag) {
         printf((char *) data);
         printf("\n");
     }
-    if (get_role() == SPI_ROLE_SLAVE) {
+    /*if (get_role() == SPI_ROLE_SLAVE) {
         printf("Setting irq pin low\n");
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
-    }
+    }*/
 }
 
-uint8_t spi_receive_blocking(uint8_t *data) {
-    uint8_t len = 0;
-    if (get_role() == SPI_ROLE_MASTER) {
+uint16_t spi_receive_blocking(uint8_t *data) {
+    uint16_t len = 0;
+    /*if (get_role() == SPI_ROLE_MASTER) {
         while (gpio_get(GPIO_SLAVE_IRQ_PIN) == 0) {
             tight_loop_contents();
         }
     } else {
         printf("Waiting for header\n");
-    }
+    }*/
     do {
         spi_read_blocking(spi_default, 0, &dummy, 1);
     } while (dummy != 0xff);
-    spi_read_blocking(spi_default, 0, &len, 1);
-    spi_read_blocking(spi_default, 0, &flag, 1);
+    uint8_t hdr[4];
+    spi_read_blocking(spi_default, 0, hdr, 4);
+    len = (hdr[0] << 8) + hdr[1];
+    flag = (hdr[2] << 8) + hdr[3];
     for (int i = 0; i < 1000; i++) tight_loop_contents();
     spi_read_blocking(spi_default, 0, data, len & 0xFF);
     if (flag & DEBUG_PRINT_AS_HEX) {
