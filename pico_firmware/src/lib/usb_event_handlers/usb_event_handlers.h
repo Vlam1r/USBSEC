@@ -12,6 +12,7 @@
 #include "tusb_types.h"
 #include <hardware/structs/usb.h>
 #include "../event_queue/event_queue.h"
+#include "../edpt_registry/edpt_registry.h"
 
 typedef struct hw_endpoint {
     // Is this a valid struct

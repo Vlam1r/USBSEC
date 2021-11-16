@@ -14,7 +14,7 @@
 
 typedef struct {
     uint8_t payload[300];
-    uint8_t *length;
+    uint16_t length;
 } event_t;
 
 uint8_t queue_size(void);

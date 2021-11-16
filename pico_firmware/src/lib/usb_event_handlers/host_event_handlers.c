@@ -23,8 +23,11 @@ void define_setup_packet(uint8_t *setup) {
 }
 
 bool print = false;
+int curredpt = -1;
 
 void slavework() {
+    clear_idle();
+
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
     int len = spi_receive_blocking(bugger);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);
@@ -57,7 +60,8 @@ void slavework() {
          */
         level = 3;
         uint8_t reg_idx = bugger[len - 1];
-        hcd_edpt_open(&registry[reg_idx]);
+        if (curredpt != reg_idx) hcd_edpt_open(&registry[reg_idx]);
+        curredpt = reg_idx;
         hcd_edpt_xfer(0, dev_addr, registry[reg_idx].bEndpointAddress, bugger, len - 1);
     } else if (get_flag() & EVENTS) {
         /*
@@ -67,7 +71,7 @@ void slavework() {
         spi_send_blocking(&event_count, 1, USB_DATA | DEBUG_PRINT_AS_HEX);
         while (event_count--) {
             event_t *e = get_from_event_queue();
-            spi_send_blocking((const uint8_t *) e, sizeof(event_t), USB_DATA);
+            spi_send_blocking(e->payload, e->length, USB_DATA | DEBUG_PRINT_AS_HEX);
         }
     } else {
         slavework();
@@ -88,7 +92,7 @@ void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
 }
 
 void hcd_event_xfer_complete(uint8_t dev_addr_old, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
-    uint8_t data[5] = {0xff, xferred_bytes, setup_packet.wLength, ep_addr, level};
+    uint8_t data[5] = {0xee, xferred_bytes, setup_packet.wLength, ep_addr, level};
     spi_send_blocking(data, 5, DEBUG_PRINT_AS_HEX);
 
     if (level == 0) {
@@ -119,13 +123,19 @@ void hcd_event_xfer_complete(uint8_t dev_addr_old, uint8_t ep_addr, uint32_t xfe
         //spi_send_string("DONE");
         //bugger[xferred_bytes] = ep_addr;
         //spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
-        if (!(ep_addr & 0x80)) return;
-        event_t e;
-        e.length = xferred_bytes + 1;
-        assert(xferred_bytes < 256);
-        memcpy(e.payload, bugger, xferred_bytes);
-        e.payload[xferred_bytes] = ep_addr;
-        insert_into_event_queue(&e);
+        if (ep_addr & 0x80) {
+            /*
+             * Input endpoint
+             */
+            event_t e;
+            e.length = xferred_bytes + 1;
+            assert(xferred_bytes < 256);
+            memcpy(e.payload, bugger, xferred_bytes);
+            e.payload[xferred_bytes] = ep_addr;
+            insert_into_event_queue(&e);
+            hcd_edpt_xfer(0, dev_addr, ep_addr, bugger, 0);
+        }
+        spi_send_blocking(NULL, 0, GOING_IDLE);
         //slavework();
 
     } else {

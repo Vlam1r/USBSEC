@@ -46,6 +46,7 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
                     dcd_edpt_xfer_new(rhport, edpt->bEndpointAddress, bugger, 64);
                 }
                 spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN); // TODO ONLY IF INTERRUPT
+                insert_into_registry(edpt);
                 spi_await(bugger, USB_DATA);
             }
             pos += bugger[pos];
@@ -91,20 +92,31 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
     bugger[64] = 0;
     spi_send_blocking(bugger, 64 + 1, USB_DATA);
     int len = spi_await(bugger, USB_DATA);*/
-    bugger[xferred_bytes] = 1;
+
+    bugger[xferred_bytes] = 1; //TODO
     spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
-    spi_await(bugger, USB_DATA);
-    printf("Polling start");
+    spi_await(bugger, GOING_IDLE);
+
     bool gottem = false;
     while (!gottem) {
         gottem = true;
-        for (int i = 0; i < 2; i++) {
+        const tusb_desc_endpoint_t *edpt = get_first_in_registry();
+        for (int i = 0; i < 2; i++, edpt = get_next_in_registry(edpt)) {
+            if (!(edpt->bEndpointAddress & 0x80)) {
+                /*
+                 * Skip OUT endpoints as we want to get data into host.
+                 */
+                continue;
+            }
             memset(bugger, 0, 64);
             bugger[64] = i;
-            printf("Poll %d", i);
+            printf("Poll %d [%d]\n", i, edpt->bEndpointAddress);
             trigger_spi_irq();
             spi_send_blocking(bugger, 64 + 1, USB_DATA);
+            printf("Waiting idle \n");
+            spi_await(bugger, GOING_IDLE);
         }
+        printf("Endpoint iteration done \n");
         trigger_spi_irq();
         spi_send_blocking(NULL, 0, EVENTS);
         spi_receive_blocking(bugger);

@@ -154,7 +154,7 @@ static void hw_handle_buff_status(void) {
 static void hw_trans_complete(void) {
     struct hw_endpoint *ep = &epx;
     if (!ep->active) {
-        spi_send_string("SLAVE EPX IS CRACKED");
+        //spi_send_string("SLAVE EPX IS CRACKED");
         //return;
     }
 
@@ -175,7 +175,6 @@ static void hcd_rp2040_irq_new(void) {
     uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
     spi_send_string("Slave interrupt");
     spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
-
 
     if (status & USB_INTS_HOST_CONN_DIS_BITS) {
         handled |= USB_INTS_HOST_CONN_DIS_BITS;

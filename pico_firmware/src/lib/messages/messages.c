@@ -54,7 +54,22 @@ static void gpio_irq(uint pin, uint32_t event) {
     }
 }
 
+void set_idle(void) {
+    assert(get_role() == SPI_ROLE_SLAVE);
+    gpio_put(GPIO_SLAVE_IDLE_PIN, 1);
+}
+
+void clear_idle(void) {
+    assert(get_role() == SPI_ROLE_SLAVE);
+    gpio_put(GPIO_SLAVE_IDLE_PIN, 1);
+}
+
+bool slave_is_idle(void) {
+    return gpio_get(GPIO_SLAVE_IDLE_PIN);
+}
+
 void trigger_spi_irq(void) {
+    assert(get_role() == SPI_ROLE_MASTER);
     gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
     spi_receive_blocking(NULL);
     gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
@@ -66,11 +81,14 @@ void messages_config(void) {
     gpio_init(GPIO_MASTER_SELECT_PIN);
     gpio_set_dir(GPIO_MASTER_SELECT_PIN, GPIO_IN);
 
+
     gpio_init(GPIO_SLAVE_IRQ_PIN);
     gpio_set_dir(GPIO_SLAVE_IRQ_PIN, (get_role() == SPI_ROLE_SLAVE) ? GPIO_IN : GPIO_OUT);
+    gpio_set_dir(GPIO_SLAVE_IDLE_PIN, (get_role() == SPI_ROLE_MASTER) ? GPIO_IN : GPIO_OUT);
     if (get_role() == SPI_ROLE_MASTER) {
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
     } else {
+        gpio_put(GPIO_SLAVE_IDLE_PIN, 0);
         gpio_set_irq_enabled_with_callback(GPIO_SLAVE_IRQ_PIN, GPIO_IRQ_EDGE_RISE, true, gpio_irq);
     }
 
