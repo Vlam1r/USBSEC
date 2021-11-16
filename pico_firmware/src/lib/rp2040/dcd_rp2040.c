@@ -152,6 +152,8 @@ static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_by
 static void hw_handle_buff_status(void) {
     uint32_t remaining_buffers = usb_hw->buf_status;
     pico_trace("buf_status = 0x%08x\n", remaining_buffers);
+    printf("Bugger: %d\n", remaining_buffers);
+
     uint bit = 1u;
     for (uint i = 0; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i++) {
         if (remaining_buffers & bit) {
@@ -163,12 +165,14 @@ static void hw_handle_buff_status(void) {
 
             // Continue xfer
             bool done = hw_endpoint_xfer_continue(ep);
+            remaining_buffers &= ~bit;
             if (done) {
                 // Notify
-                dcd_event_xfer_complete_new(0, ep->ep_addr, ep->xferred_len, XFER_RESULT_SUCCESS, true);
-                hw_endpoint_reset_transfer(ep);
+                if (bit <= 2 || remaining_buffers == 0)
+                    dcd_event_xfer_complete_new(0, ep->ep_addr, ep->xferred_len, XFER_RESULT_SUCCESS, true);
+                //hw_endpoint_buffer_control_update32(ep, 0, USB_BUF_CTRL_FULL);
+                hw_endpoint_reset_transfer_new(ep);
             }
-            remaining_buffers &= ~bit;
         }
         bit <<= 1u;
     }

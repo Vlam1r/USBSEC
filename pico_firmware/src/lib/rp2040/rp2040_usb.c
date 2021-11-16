@@ -58,15 +58,14 @@ void rp2040_usb_init(void)
   // Mux the controller to the onboard usb phy
   usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;
 }
-
-void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
-{
-  ep->active = false;
-  ep->remaining_len = 0;
-  ep->xferred_len = 0;
-  ep->user_buf = 0;
-}
 */
+void hw_endpoint_reset_transfer_new(struct hw_endpoint *ep) {
+    ep->active = false;
+    ep->remaining_len = 0;
+    ep->xferred_len = 0;
+    //ep->user_buf = 0;
+}
+
 void hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
     uint32_t value = 0;
     if (and_mask) {
@@ -224,7 +223,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
         TU_LOG(1, "WARN: starting new transfer on already active ep %d %s\n", tu_edpt_number(ep->ep_addr),
                ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
 
-        hw_endpoint_reset_transfer(ep);
+        hw_endpoint_reset_transfer_new(ep);
     }
 
     // Fill in info now that we're kicking off the hw
@@ -260,6 +259,7 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
         }
 
         memcpy(ep->user_buf, ep->hw_data_buf + buf_id * 64, xferred_bytes);
+        printf("Received %d bytes on [0x%x], %p", xferred_bytes, ep->ep_addr, ep->user_buf);
         //spi_send_blocking(ep->user_buf, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
         ep->xferred_len += xferred_bytes;
         ep->user_buf += xferred_bytes;

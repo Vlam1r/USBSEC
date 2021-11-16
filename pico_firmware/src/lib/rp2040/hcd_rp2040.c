@@ -93,7 +93,7 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result) 
     uint8_t dev_addr = ep->dev_addr;
     uint8_t ep_addr = ep->ep_addr;
     uint xferred_len = ep->xferred_len;
-    hw_endpoint_reset_transfer(ep);
+    hw_endpoint_reset_transfer_new(ep);
     hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
 
@@ -453,12 +453,11 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 
     struct hw_endpoint *ep = &epx; //get_dev_ep(dev_addr, ep_addr); TODO
 
-
     assert(ep);
 
     // Control endpoint can change direction 0x00 <-> 0x80
-    if (ep_addr != ep->ep_addr /**/ && ep_num == 0) {
-        assert(ep_num == 0);
+    if (ep_addr != ep->ep_addr /* && ep_num == 0*/) {
+        //assert(ep_num == 0);
 
         // Direction has flipped on endpoint control so re init it but with same properties
         _hw_endpoint_init(ep, dev_addr, ep_addr, ep->wMaxPacketSize, ep->transfer_type, 0);

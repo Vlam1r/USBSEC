@@ -61,7 +61,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
 
 bool hw_endpoint_xfer_continue(struct hw_endpoint *ep);
 
-void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
+void hw_endpoint_reset_transfer_new(struct hw_endpoint *ep);
 
 void hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);
 

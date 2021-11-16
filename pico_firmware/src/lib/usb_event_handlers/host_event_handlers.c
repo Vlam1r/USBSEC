@@ -59,10 +59,15 @@ void slavework() {
          * Data is copied into buffer
          */
         level = 3;
-        uint8_t reg_idx = bugger[len - 1];
-        if (curredpt != reg_idx) hcd_edpt_open(&registry[reg_idx]);
-        curredpt = reg_idx;
-        hcd_edpt_xfer(0, dev_addr, registry[reg_idx].bEndpointAddress, bugger, len - 1);
+        if (bugger[len - 1] != 0xff) {
+            uint8_t reg_idx = bugger[len - 1];
+            if (curredpt != reg_idx) hcd_edpt_open(&registry[reg_idx]);
+            curredpt = reg_idx;
+            hcd_edpt_xfer(0, dev_addr, registry[reg_idx].bEndpointAddress, bugger, len - 1);
+            spi_send_string("SLAVEWORK END");
+        } else {
+            hcd_edpt_xfer(0, 0, 0x00, NULL, 0);
+        }
     } else if (get_flag() & EVENTS) {
         /*
          * Handle event queue
