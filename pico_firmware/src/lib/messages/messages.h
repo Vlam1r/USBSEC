@@ -11,6 +11,8 @@
 #include "pico/multicore.h"
 #include <stdio.h>
 #include <string.h>
+#include <hardware/structs/usb.h>
+#include "../debug/debug.h"
 
 #define GPIO_MASTER_SELECT_PIN 2
 #define GPIO_SLAVE_IRQ_PIN 14
@@ -36,8 +38,6 @@ typedef enum {
 
 typedef void(*void_func_t)(void);
 
-void print_arr_hex(const uint8_t *data, int len);
-
 void messages_config(void);
 
 void spi_send_blocking(const uint8_t *data, uint16_t len, uint16_t new_flag);
@@ -53,8 +53,6 @@ void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag);
 uint16_t get_flag();
 
 int spi_await(uint8_t *data, uint16_t cond);
-
-int spi_await_with_timeout(uint8_t *data, uint16_t cond, uint64_t timeout_us_new);
 
 void set_spi_pin_handler(void_func_t fun);
 

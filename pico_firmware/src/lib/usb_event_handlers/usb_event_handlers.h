@@ -13,6 +13,7 @@
 #include <hardware/structs/usb.h>
 #include "../event_queue/event_queue.h"
 #include "../edpt_registry/edpt_registry.h"
+#include "../debug/debug.h"
 
 typedef struct hw_endpoint {
     // Is this a valid struct
@@ -88,7 +89,7 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
 
 extern bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
 
-void device_event_bus_reset();
+void device_event_bus_reset(void);
 
 extern void dcd_event_bus_signal(uint8_t rhport, dcd_eventid_t eid, bool in_isr);
 
@@ -115,7 +116,9 @@ void dcd_int_enable_new(uint8_t rhport);
 
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *request);
 
-void slavework();
+void slavework(void);
+
+void masterwork(void);
 
 
 #endif //PICO_FIRMWARE_USB_EVENT_HANDLERS_H

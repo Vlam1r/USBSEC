@@ -59,25 +59,23 @@ void slavework() {
          * Data is copied into buffer
          */
         level = 3;
-        if (bugger[len - 1] != 0xff) {
-            uint8_t reg_idx = bugger[len - 1];
-            if (curredpt != reg_idx) hcd_edpt_open(&registry[reg_idx]);
-            curredpt = reg_idx;
-            hcd_edpt_xfer(0, dev_addr, registry[reg_idx].bEndpointAddress, bugger, len - 1);
-            spi_send_string("SLAVEWORK END");
-        } else {
-            hcd_edpt_xfer(0, 0, 0x00, NULL, 0);
-        }
+
+        uint8_t reg_idx = bugger[len - 1];
+        if (curredpt != reg_idx) hcd_edpt_open(&registry[reg_idx]);
+        curredpt = reg_idx;
+        hcd_edpt_xfer(0, dev_addr, registry[reg_idx].bEndpointAddress, bugger, len - 1);
+        spi_send_string("SLAVEWORK END");
+
     } else if (get_flag() & EVENTS) {
         /*
          * Handle event queue
          */
-        uint8_t event_count = queue_size();
+        /*uint8_t event_count = queue_size();
         spi_send_blocking(&event_count, 1, USB_DATA | DEBUG_PRINT_AS_HEX);
         while (event_count--) {
             event_t *e = get_from_event_queue();
             spi_send_blocking(e->payload, e->length, USB_DATA | DEBUG_PRINT_AS_HEX);
-        }
+        }*/
     } else {
         slavework();
     }

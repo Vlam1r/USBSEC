@@ -7,6 +7,7 @@
 
 #include "lib/messages/messages.h"
 #include "lib/rp2040/rp2040_usb.h"
+#include "lib/debug/debug.h"
 
 uint8_t data[1000];
 
@@ -18,6 +19,12 @@ int main() {
 
     stdio_uart_init();
     messages_config();
+
+    //set_print_flag(EVENT_QUEUE);
+    //set_print_flag(EVENT);
+    set_print_flag(IRQ);
+    set_print_flag(SPI_MESSAGES_OUT);
+    set_print_flag(SPI_MESSAGES_IN);
 
     if (get_role() == SPI_ROLE_MASTER) {
         // master
@@ -38,6 +45,9 @@ int main() {
          * Nothing else to do.
          * Everything is event-driven.
          */
+        if (get_role() == SPI_ROLE_MASTER) {
+            masterwork();
+        }
         tight_loop_contents();
     }
 #pragma clang diagnostic pop

@@ -5,20 +5,52 @@
 #include "usb_event_handlers.h"
 
 static uint8_t bugger[1000];
-bool cfg_set = false;
 
 /*
  * Device Events
  */
 
 void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_isr) {
+    assert(rhport == 0);
+    assert(in_isr);
+    event_t e = {
+            .e_type = DEVICE_EVENT_SETUP_RECEIVED,
+            .payload_length = 8,
+            .payload = (uint8_t *) setup
+    };
+    create_event(&e);
+}
+
+void device_event_bus_reset(void) {
+    event_t e = {
+            .e_type = DEVICE_EVENT_BUS_RESET,
+            .payload_length = 0,
+            .payload = NULL
+    };
+    create_event(&e);
+}
+
+void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr) {
+    assert(result == 0);
+    assert(rhport == 0);
+    event_t e = {
+            .e_type = DEVICE_EVENT_XFER_COMPLETE,
+            .payload_length = xferred_bytes,
+            .payload = bugger,
+            .ep_addr = ep_addr
+    };
+    create_event(&e);
+}
+
+static void handle_setup_event(uint8_t const *setup) {
+
     tusb_control_request_t *const req = (tusb_control_request_t *) setup;
     if (req->bRequest == 0x5 /*SET ADDRESS*/) {
         /*
          * If request is SET_ADDRESS we do not want to pass it on.
          * Instead, it gets handled here and slave keeps communicating to device on dev_addr 0
          */
-        dcd_edpt_xfer_new(rhport, 0x80, NULL, 0); // ACK
+        dcd_edpt_xfer_new(0, 0x80, NULL, 0); // ACK
         return;
     }
 
@@ -27,7 +59,8 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
      */
     spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
 
-    int len = spi_await(bugger, USB_DATA);
+    uint8_t arr[100];
+    int len = spi_await(arr, USB_DATA);
 
     /*
      * Hooks
@@ -37,37 +70,31 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
         printf("doing endpoints.\n");
         int pos = 0;
         while (pos < len) {
-            if (bugger[pos + 1] == 0x05) {
-                const tusb_desc_endpoint_t *const edpt = (const tusb_desc_endpoint_t *const) &bugger[pos];
-                dcd_edpt_open_new(rhport, edpt);
+            if (arr[pos + 1] == 0x05) {
+                const tusb_desc_endpoint_t *const edpt = (const tusb_desc_endpoint_t *const) &arr[pos];
+                dcd_edpt_open_new(0, edpt);
                 // Start read
                 printf("0x%x\n", edpt->bEndpointAddress);
-                if (edpt->bEndpointAddress == 2) {
-                    dcd_edpt_xfer_new(rhport, edpt->bEndpointAddress, bugger, 64);
-                }
+                //if (edpt->bEndpointAddress == 2) { // TODO HARDEN
+                dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64);
+                //}
                 spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN); // TODO ONLY IF INTERRUPT
                 insert_into_registry(edpt);
-                spi_await(bugger, USB_DATA);
+                spi_await(arr, USB_DATA);
             }
-            pos += bugger[pos];
+            pos += arr[pos];
         }
     }
     if (req->bRequest == 0x09 /* SET CONFIG */) {
-        cfg_set = true;
         printf("Configuration confirmed.\n");
     }
-
-    dcd_edpt_xfer_new(0, 0x80, bugger, len);
-    dcd_edpt_xfer_new(rhport, 0x00, NULL, 0);
+    dcd_edpt_xfer_new(0, 0x80, arr, len);
+    dcd_edpt_xfer_new(0, 0x00, NULL, 0);
 }
 
-static bool needack = false;
-
-void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr) {
+static void handle_xfer_complete(uint8_t ep_addr, uint8_t *data, uint32_t xferred_bytes) {
 
     if (((tusb_control_request_t *) usb_dpram->setup_packet)->bRequest == 0x5 /*SET ADDRESS*/) {
-        //spi_send_blocking(&usb_dpram->setup_packet, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
-        //assert(spi_await(bugger, USB_DATA) == 0);
         printf("Setting address to %d, [%d] %d\n", ((const tusb_control_request_t *) usb_dpram->setup_packet)->wValue,
                ep_addr,
                xferred_bytes);
@@ -76,94 +103,58 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
     }
 
     if (ep_addr == 0 || ep_addr == 0x80) return;
+    printf("\n+-----\n|Completed transfer on %d\n+-----\n", ep_addr);
+    if (xferred_bytes == 0) return;
 
-
-    printf("+-----\n|Completed transfer on %d\n+-----\n", ep_addr);
-    printf("Bugger points to %p\n", bugger);
-    if (xferred_bytes == 0 || result != 0) return;
-
-
-    // TODO HARDEN THIS INTERACTION
-    /*bugger[xferred_bytes] = 1;
-    spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
-    spi_await(bugger, USB_DATA);
-    memset(bugger, 0, 64);
-    bugger[64] = 0;
-    spi_send_blocking(bugger, 64 + 1, USB_DATA);
-    int len = spi_await(bugger, USB_DATA);*/
 
     if (~ep_addr & 0x80) {
-        if (needack) {
-            uint8_t bkp[100];
-            printf("sending ack\n");
-            uint8_t ack = 1;
-            spi_send_blocking(&ack, 1, USB_DATA | DEBUG_PRINT_AS_HEX);
-            spi_await(bkp, GOING_IDLE);
-            trigger_spi_irq();
-        }
-        bugger[xferred_bytes] = 1; //TODO
-        spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
-        spi_await(bugger, GOING_IDLE);
+        data[xferred_bytes] = 1; //TODO
+        spi_send_blocking(data, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
+        spi_await(data, GOING_IDLE);
         trigger_spi_irq();
+        dcd_edpt_xfer_new(0, ep_addr, data, 64);
+    } else {
+        uint8_t arr[100];
+        memset(arr, 0, 64);
+        arr[64] = 0;
+        printf("Poll %d [0x%x]\n", 0, 0x81);
+        spi_send_blocking(arr, 64 + 1, USB_DATA);
 
-        needack = !needack;
-        int len = 0; // Todo remove cheese
-        while (len != 13) {
-            memset(bugger, 0, 64);
-            bugger[64] = 0;
-            printf("Poll %d [0x%x]\n", 0, 0x81);
-            spi_send_blocking(bugger, 64 + 1, USB_DATA);
-
-            printf("Waiting idle \n");
-            len = spi_await(bugger, USB_DATA);
-            dcd_edpt_xfer_new(rhport, 0x81, bugger, len);
-            trigger_spi_irq();
-        }
-
-        dcd_edpt_xfer_new(rhport, ep_addr, bugger, 64);
+        printf("Waiting idle \n");
+        int len = spi_await(arr, USB_DATA);
+        trigger_spi_irq();
+        dcd_edpt_xfer_new(0, 0x81, bugger, len);
     }
-
-    /*const tusb_desc_endpoint_t *edpt = get_first_in_registry();
-    for (int i = 0; i < 2; i++, edpt = get_next_in_registry(edpt)) {
-        if (!(edpt->bEndpointAddress & 0x80)) {
-            // Skip OUT endpoints as we want to get data into host.
-
-            continue;
-        }
-        while (true) {
-            memset(bugger, 0, 64);
-            bugger[64] = i;
-            printf("Poll %d [0x%x]\n", i, edpt->bEndpointAddress);
-            spi_send_blocking(bugger, 64 + 1, USB_DATA);
-
-            printf("Waiting idle \n");
-            int len = spi_await(bugger, USB_DATA);
-            dcd_edpt_xfer_new(rhport, edpt->bEndpointAddress, bugger, len);
-            trigger_spi_irq();
-            break;
-        }
-    }*/
-
-/*
-    bool gottem = false;
-    while (!gottem) {
-        gottem = true;
-
-        printf("Endpoint iteration done \n");
-        trigger_spi_irq();
-        spi_send_blocking(NULL, 0, EVENTS);
-        spi_receive_blocking(bugger);
-        int count = bugger[0];
-        while (count--) {
-            gottem = false;
-            int len = spi_receive_blocking(bugger);
-            dcd_edpt_xfer_new(rhport, bugger[len - 1], bugger, len - 1);
-        }
-    }*/
-
 }
 
-void device_event_bus_reset() {
-    printf("Resetting\n");
-    spi_send_blocking(NULL, 0, RESET_USB);
+void masterwork(void) {
+    event_t *e = get_from_event_queue();
+    if (e == NULL) return;
+
+    switch (e->e_type) {
+
+        case DEVICE_EVENT_SETUP_RECEIVED:
+            debug_print(EVENT, "[EVENT] Handling setup event\n");
+            handle_setup_event(e->payload);
+            break;
+
+        case DEVICE_EVENT_XFER_COMPLETE:
+            debug_print(EVENT, "[EVENT] Handling xfer event\n");
+            handle_xfer_complete(e->ep_addr, e->payload, e->payload_length);
+            break;
+
+        case DEVICE_EVENT_BUS_RESET:
+            debug_print(EVENT, "[EVENT] Handling bus reset\n");
+            spi_send_blocking(NULL, 0, RESET_USB);
+            sleep_ms(1000);
+            break;
+
+        case SLAVE_SPI_WAITING_TO_SEND:
+            break;
+
+        default:
+            panic("Unknown event type %d", e->e_type);
+    }
+
+    delete_event(e);
 }
