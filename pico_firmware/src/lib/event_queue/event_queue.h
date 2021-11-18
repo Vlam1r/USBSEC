@@ -19,7 +19,8 @@ typedef enum {
     DEVICE_EVENT_SETUP_RECEIVED,
     DEVICE_EVENT_XFER_COMPLETE,
     DEVICE_EVENT_BUS_RESET,
-    SLAVE_SPI_WAITING_TO_SEND
+    SLAVE_SPI_WAITING_TO_SEND,
+    HOST_EVENT_XFER_COMPLETE /* Only event for slave */
 } event_type;
 
 typedef struct {
@@ -34,7 +35,7 @@ uint8_t queue_size(void);
 
 event_t *get_from_event_queue(void);
 
-bool create_event(event_t *e);
+void create_event(event_t *e);
 
 void delete_event(event_t *e);
 

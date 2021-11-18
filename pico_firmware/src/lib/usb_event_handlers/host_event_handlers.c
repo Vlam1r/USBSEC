@@ -32,36 +32,44 @@ void slavework() {
     gpio_put(GPIO_SLAVE_WAITING_PIN, 0);
 
     if (get_flag() & RESET_USB) {
+        /*
+         * Reset USB device
+         */
         usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
-    }
-
-    if (get_flag() & EDPT_OPEN) {
+    } else if (get_flag() & EDPT_OPEN) {
         /*
          * Open sent endpoint
          */
         memcpy(&registry[reg_count++], bugger, len);
-        spi_send_blocking(NULL, 0, USB_DATA);
-        slavework();
     } else if (get_flag() & SETUP_DATA) {
         /*
          * Data is copied into setup
          */
         define_setup_packet(bugger);
         level = 0;
-
         hcd_setup_send(0, 0, (const uint8_t *) &setup_packet);
     } else if (get_flag() & USB_DATA) {
         /*
          * Data is copied into buffer
          */
         level = 3;
-
         uint8_t reg_idx = bugger[len - 1];
-        if (curredpt != reg_idx) hcd_edpt_open(&registry[reg_idx]);
+        if (curredpt != reg_idx) hcd_edpt_open(&registry[reg_idx]); // TODO HARDEN
         curredpt = reg_idx;
         hcd_edpt_xfer(0, 0, registry[reg_idx].bEndpointAddress, bugger, len - 1);
-    } else {
-        slavework();
+    } else if (get_flag() & SLAVE_DATA) {
+        /*
+         * Empty data (event) queue to master
+         */
+        uint8_t queue_len = queue_size();
+        spi_send_blocking(&queue_len, 1, SLAVE_DATA);
+        while (queue_size() > 0) {
+            event_t *e = get_from_event_queue();
+            e->payload[e->payload_length] = e->ep_addr;
+            spi_send_blocking(e->payload, e->payload_length + 1, SLAVE_DATA);
+            delete_event(e);
+        }
+        gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
     }
 }
 
@@ -74,8 +82,6 @@ void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
 }
 
 void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
-    uint8_t data[5] = {0xee, xferred_bytes, setup_packet.wLength, ep_addr, level};
-    spi_send_blocking(data, 5, DEBUG_PRINT_AS_HEX);
 
     if (level == 0) {
         // SETUP
@@ -88,21 +94,45 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred
             /*
              * If no data is to be transferred we shouldn't request ACK
              */
-            spi_send_blocking(NULL, 0, USB_DATA | DEBUG_PRINT_AS_HEX);
-            slavework();
+            //spi_send_blocking(NULL, 0, USB_DATA | DEBUG_PRINT_AS_HEX);
+            event_t e = {
+                    .e_type = HOST_EVENT_XFER_COMPLETE,
+                    .payload = NULL,
+                    .payload_length = 0,
+                    .ep_addr = ep_addr
+            };
+            create_event(&e);
+            gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
+            //slavework();
             return;
         }
         outlen = xferred_bytes;
         hcd_edpt_xfer(0, 0, 0x00, NULL, 0); // Request ACK
     } else if (level == 2) {
         // ACK
-        spi_send_blocking(bugger, outlen, USB_DATA | DEBUG_PRINT_AS_HEX);
-        slavework();
+        event_t e = {
+                .e_type = HOST_EVENT_XFER_COMPLETE,
+                .payload = bugger,
+                .payload_length = outlen,
+                .ep_addr = ep_addr
+        };
+        create_event(&e);
+        gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
+        //spi_send_blocking(bugger, outlen, USB_DATA | DEBUG_PRINT_AS_HEX);
+        //slavework();
     } else {
-        gpio_put(SLAVE_SPI_WAITING_TO_SEND, 1);
+        /*bugger[xferred_bytes++] = ep_addr;
+        gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
         spi_send_blocking(bugger, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
-        gpio_put(SLAVE_SPI_WAITING_TO_SEND, 1);
-        slavework();
-
+        gpio_put(GPIO_SLAVE_IRQ_PIN, 0);*/
+        event_t e = {
+                .e_type = HOST_EVENT_XFER_COMPLETE,
+                .payload = bugger,
+                .payload_length = xferred_bytes,
+                .ep_addr = ep_addr
+        };
+        create_event(&e);
+        gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
+        //slavework();
     }
 }

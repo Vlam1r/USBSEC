@@ -14,10 +14,25 @@
 #include <hardware/structs/usb.h>
 #include "../debug/debug.h"
 
+/*
+ * High for master, low for slave
+ */
 #define GPIO_MASTER_SELECT_PIN 2
+/*
+ * High when device is connected to slave
+ */
 #define GPIO_SLAVE_DEVICE_ATTACHED_PIN 15
+/*
+ * Slave -> Master: Data to send
+ */
 #define GPIO_SLAVE_IRQ_PIN 14
+/*
+ * High when slave is waiting to receive over spi
+ */
 #define GPIO_SLAVE_WAITING_PIN 13
+/*
+ * Master -> Slave: Data to send
+ */
 #define GPIO_SLAVE_RECEIVE_PIN 12
 #define SPI_BAUDRATE (int)(4*1000*1000) // 8MHz is too much at 144MHz clock
 
@@ -26,6 +41,7 @@ typedef enum {
     SETUP_DATA = 0x2,
     RESET_USB = 0x4,
     EDPT_OPEN = 0x8,
+    SLAVE_DATA = 0x10,
     /**/
     DEBUG_PRINT_AS_STRING = 0x4000,
     DEBUG_PRINT_AS_HEX = 0x8000

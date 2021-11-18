@@ -23,7 +23,7 @@ static bool full(void) {
 }
 
 uint8_t queue_size(void) {
-    return (end - begin) % EVENT_QUEUE_MAX_CAPACITY;
+    return (end + EVENT_QUEUE_MAX_CAPACITY - begin) % EVENT_QUEUE_MAX_CAPACITY;
 }
 
 event_t *get_from_event_queue(void) {
@@ -34,20 +34,19 @@ event_t *get_from_event_queue(void) {
     return &events[retidx];
 }
 
-bool create_event(event_t *e) {
-    if (full()) return false;
+void create_event(event_t *e) {
+    if (full()) panic("EVENT QUEUE FULL!!!");
 
     memcpy(&events[end], e, sizeof(event_t));
     if (events[end].payload_length != 0) {
         events[end].payload = malloc(events[end].payload_length + 1);
         if (events[end].payload == NULL) {
-            return false;
+            panic("OUT OF MEMORY!!!");
         }
         memcpy(events[end].payload, e->payload, events[end].payload_length);
     }
     end = next(end);
-    debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Insert. New range [%d-%d]\n", begin, end);
-    return true;
+    debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Insert %d. New range [%d-%d]\n", e->e_type, begin, end);
 }
 
 void delete_event(event_t *e) {

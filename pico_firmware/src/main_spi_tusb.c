@@ -23,13 +23,15 @@ int main() {
     set_print_flag(PRINT_REASON_PREAMBLE);
     set_print_flag(PRINT_REASON_IRQ);
     set_print_flag(PRINT_REASON_USB_EXCHANGES);
-    set_print_flag(PRINT_REASON_SPI_MESSAGES_IN);
-    set_print_flag(PRINT_REASON_SPI_MESSAGES_OUT);
+    set_print_flag(PRINT_REASON_DCD_BUFFER);
+    //set_print_flag(PRINT_REASON_SPI_MESSAGES_IN);
+    //set_print_flag(PRINT_REASON_SPI_MESSAGES_OUT);
     //set_print_flag(PRINT_REASON_EVENT);
     //set_print_flag(PRINT_REASON_EVENT_QUEUE);
-    set_print_flag(PRINT_REASON_SETUP_REACTION);
+    //set_print_flag(PRINT_REASON_SETUP_REACTION);
+    set_print_flag(PRINT_REASON_SLAVE_DATA);
 
-    //stdio_uart_init();
+    stdio_uart_init();
     messages_config();
 
     if (get_role() == SPI_ROLE_MASTER) {
@@ -47,7 +49,8 @@ int main() {
         // slave
         hcd_init(0);
         hcd_int_enable(0);
-        slavework();
+        set_spi_pin_handler(slavework);
+        //slavework();
         while (true) {
             tight_loop_contents();
         }

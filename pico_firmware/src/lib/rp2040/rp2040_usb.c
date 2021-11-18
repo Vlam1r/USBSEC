@@ -75,7 +75,7 @@ void hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_ma
         value |= or_mask;
         if (or_mask & USB_BUF_CTRL_AVAIL) {
             if (*ep->buffer_control & USB_BUF_CTRL_AVAIL) {
-                debug_print(PRINT_REASON_DCD_BUFFER, "WARNING: ep %d %s was already available",
+                debug_print(PRINT_REASON_DCD_BUFFER, "WARNING: ep %d %s was already available\n",
                             tu_edpt_number(ep->ep_addr),
                             ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
             }
@@ -112,6 +112,8 @@ static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
     if (!ep->rx) {
         // Copy data from user buffer to hw buffer
         memcpy(ep->hw_data_buf + buf_id * 64, ep->user_buf, buflen);
+        //debug_print(PRINT_REASON_USB_EXCHANGES, "[BUFFER] Sending %d data to ep 0x%x\n", buflen, ep->ep_addr);
+        //debug_print_array(PRINT_REASON_USB_EXCHANGES, ep->user_buf, buflen);
         ep->user_buf += buflen;
 
         // Mark as full
@@ -260,8 +262,7 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
         }
 
         memcpy(ep->user_buf, ep->hw_data_buf + buf_id * 64, xferred_bytes);
-        debug_print(PRINT_REASON_DCD_BUFFER, "Received %d bytes on [0x%x], %p", xferred_bytes, ep->ep_addr,
-                    ep->user_buf);
+        debug_print(PRINT_REASON_DCD_BUFFER, "Received %d bytes on [0x%x]\n", xferred_bytes, ep->ep_addr);
         //spi_send_blocking(ep->user_buf, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
         ep->xferred_len += xferred_bytes;
         ep->user_buf += xferred_bytes;

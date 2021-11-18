@@ -5,6 +5,7 @@
 #include "usb_event_handlers.h"
 
 static uint8_t bugger[1000];
+bool handling_setup = false;
 
 /*
  * Device Events
@@ -57,8 +58,21 @@ static void register_spi_slave_event(void) {
     create_event(&e);
 }
 
-static void handle_setup_event(uint8_t const *setup) {
+int get_only_response(uint8_t *data) {
+    while (!gpio_get(GPIO_SLAVE_IRQ_PIN)) {
+        tight_loop_contents();
+    }
+    spi_send_blocking(NULL, 0, SLAVE_DATA);
+    uint8_t count;
+    int len = spi_receive_blocking(&count);
+    debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Received len %d, count %d\n", len, count);
+    assert(len == 1);
+    assert(count == 1);
+    return spi_receive_blocking(data);
+}
 
+static void handle_setup_event(uint8_t const *setup) {
+    handling_setup = true;
     tusb_control_request_t *const req = (tusb_control_request_t *) setup;
     if (req->bRequest == 0x5 /*SET ADDRESS*/) {
         /*
@@ -75,7 +89,8 @@ static void handle_setup_event(uint8_t const *setup) {
     spi_send_blocking(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
 
     uint8_t arr[100];
-    int len = spi_await(arr, USB_DATA);
+    //int len = spi_await(arr, USB_DATA);
+    int len = get_only_response(arr) - 1;
 
     /*
      * Hooks
@@ -91,9 +106,8 @@ static void handle_setup_event(uint8_t const *setup) {
                 // Start read
                 debug_print(PRINT_REASON_SETUP_REACTION, "New endpoint registered: 0x%x\n", edpt->bEndpointAddress);
                 dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64);
-                spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN); // TODO ONLY IF INTERRUPT
+                spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN); // TODO ONLY IF INTERRUPT?
                 insert_into_registry(edpt);
-                spi_await(arr, USB_DATA);
             }
             pos += arr[pos];
         }
@@ -101,6 +115,7 @@ static void handle_setup_event(uint8_t const *setup) {
     if (req->bRequest == 0x09 /* SET CONFIG */) {
         debug_print(PRINT_REASON_SETUP_REACTION, "Configuration confirmed.\n");
     }
+    handling_setup = false;
     dcd_edpt_xfer_new(0, 0x80, arr, len);
     dcd_edpt_xfer_new(0, 0x00, NULL, 0);
 }
@@ -118,27 +133,16 @@ static void handle_xfer_complete(uint8_t ep_addr, uint8_t *data, uint32_t xferre
     }
 
     if (ep_addr == 0 || ep_addr == 0x80) return;
-    printf("\n+-----\n|Completed transfer on %d\n+-----\n", ep_addr);
-    if (xferred_bytes == 0) return;
-
+    printf("\n+-----\n|Completed transfer on %d with %d bytes\n+-----\n", ep_addr, xferred_bytes);
 
     if (~ep_addr & 0x80) {
         data[xferred_bytes] = 1; //TODO
         spi_send_blocking(data, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
-        spi_await(data, USB_DATA);
-        //trigger_spi_irq();
-        dcd_edpt_xfer_new(0, ep_addr, data, 64);
     } else {
         uint8_t arr[100];
         memset(arr, 0, 64);
         arr[64] = 0;
-        printf("Poll %d [0x%x]\n", 0, 0x81);
         spi_send_blocking(arr, 64 + 1, USB_DATA);
-
-        printf("Waiting idle \n");
-        int len = spi_await(arr, USB_DATA);
-        //trigger_spi_irq();
-        dcd_edpt_xfer_new(0, 0x81, bugger, len);
     }
 }
 
@@ -147,7 +151,23 @@ void spi_handler_init(void) {
 }
 
 static void handle_spi_slave_event(void) {
-
+    if (handling_setup) return;
+    uint8_t arr[100];
+    spi_send_blocking(NULL, 0, SLAVE_DATA);
+    uint8_t count;
+    assert(spi_receive_blocking(&count) == 1);
+    debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Reading %d packets.\n", count);
+    while (count--) {
+        int len = spi_receive_blocking(arr);
+        uint8_t ep_addr = arr[--len];
+        debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Packet for 0x%x\n", ep_addr);
+        if (~ep_addr & 0x80) {
+            dcd_edpt_xfer_new(0, ep_addr, bugger, 64);
+        } else {
+            dcd_edpt_xfer_new(0, ep_addr, arr, len);
+        }
+    }
+    debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Done.\n");
 }
 
 void masterwork(void) {
@@ -182,14 +202,15 @@ void masterwork(void) {
             break;
 
         case SLAVE_SPI_WAITING_TO_SEND:
+            debug_print(PRINT_REASON_EVENT, "[EVENT] Handling SPI IN event\n");
             handle_spi_slave_event();
             break;
 
         default:
             panic("Unknown event type %d", e->e_type);
     }
-
-    printf("BANDAID PRINT\n");
+    sleep_us(100);
+    //printf("BANDAID PRINT\n");
     delete_event(e);
     debug_print(PRINT_REASON_EVENT, "Exiting masterwork\n");
 }
