@@ -9,11 +9,9 @@
  */
 
 static tusb_control_request_t setup_packet;
-static uint8_t attached = false;
 static uint8_t bugger[1000];
 static uint8_t level = 0;
 static uint8_t outlen = 0;
-static uint8_t dev_addr = 0;
 
 static tusb_desc_endpoint_t registry[16];
 static uint8_t reg_count = 0;
@@ -26,11 +24,12 @@ bool print = false;
 int curredpt = -1;
 
 void slavework() {
-    clear_idle();
 
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
+    gpio_put(GPIO_SLAVE_WAITING_PIN, 1);
     int len = spi_receive_blocking(bugger);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);
+    gpio_put(GPIO_SLAVE_WAITING_PIN, 0);
 
     if (get_flag() & RESET_USB) {
         usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
@@ -48,12 +47,9 @@ void slavework() {
          * Data is copied into setup
          */
         define_setup_packet(bugger);
-        if (!attached) return;
         level = 0;
 
-        if (!(get_flag() & RESET_USB)) {
-            hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
-        }
+        hcd_setup_send(0, 0, (const uint8_t *) &setup_packet);
     } else if (get_flag() & USB_DATA) {
         /*
          * Data is copied into buffer
@@ -63,45 +59,28 @@ void slavework() {
         uint8_t reg_idx = bugger[len - 1];
         if (curredpt != reg_idx) hcd_edpt_open(&registry[reg_idx]);
         curredpt = reg_idx;
-        hcd_edpt_xfer(0, dev_addr, registry[reg_idx].bEndpointAddress, bugger, len - 1);
-        spi_send_string("SLAVEWORK END");
-
-    } else if (get_flag() & EVENTS) {
-        /*
-         * Handle event queue
-         */
-        /*uint8_t event_count = queue_size();
-        spi_send_blocking(&event_count, 1, USB_DATA | DEBUG_PRINT_AS_HEX);
-        while (event_count--) {
-            event_t *e = get_from_event_queue();
-            spi_send_blocking(e->payload, e->length, USB_DATA | DEBUG_PRINT_AS_HEX);
-        }*/
+        hcd_edpt_xfer(0, 0, registry[reg_idx].bEndpointAddress, bugger, len - 1);
     } else {
         slavework();
     }
 }
 
 void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
-    if (attached) return;
-    level = 0;
-    attached = true;
-    set_spi_pin_handler(slavework);
-    hcd_setup_send(rhport, dev_addr, (const uint8_t *) &setup_packet);
+    gpio_put(GPIO_SLAVE_DEVICE_ATTACHED_PIN, 1);
 }
 
 void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
-    attached = false;
-    // TODO maybe send IRQ to master?
+    gpio_put(GPIO_SLAVE_DEVICE_ATTACHED_PIN, 0);
 }
 
-void hcd_event_xfer_complete(uint8_t dev_addr_old, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
+void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
     uint8_t data[5] = {0xee, xferred_bytes, setup_packet.wLength, ep_addr, level};
     spi_send_blocking(data, 5, DEBUG_PRINT_AS_HEX);
 
     if (level == 0) {
         // SETUP
         level = 1;
-        hcd_edpt_xfer(0, dev_addr_old, 0x80, bugger, setup_packet.wLength); // Request response
+        hcd_edpt_xfer(0, 0, 0x80, bugger, setup_packet.wLength); // Request response
     } else if (level == 1) {
         // DATA
         level = 2;
@@ -114,42 +93,16 @@ void hcd_event_xfer_complete(uint8_t dev_addr_old, uint8_t ep_addr, uint32_t xfe
             return;
         }
         outlen = xferred_bytes;
-        hcd_edpt_xfer(0, dev_addr_old, 0x00, NULL, 0); // Request ACK
+        hcd_edpt_xfer(0, 0, 0x00, NULL, 0); // Request ACK
     } else if (level == 2) {
         // ACK
         spi_send_blocking(bugger, outlen, USB_DATA | DEBUG_PRINT_AS_HEX);
         slavework();
-    } else if (level == 3) {
-        //level++;
-        //hcd_edpt_open(&registry[0]); // TODO HARDEN
-        //hcd_edpt_xfer(0, dev_addr, 0x81, bugger, 0xff);
-        //spi_send_string("DONE");
-        //bugger[xferred_bytes] = ep_addr;
-        //spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
-        if (ep_addr & 0x80) {
-            /*
-             * Input endpoint
-             */
-            /*event_t e;
-            e.length = xferred_bytes + 1;
-            assert(xferred_bytes < 256);
-            memcpy(e.payload, bugger, xferred_bytes);
-            e.payload[xferred_bytes] = ep_addr;
-            insert_into_event_queue(&e);*/
-            spi_send_blocking(bugger, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
-            return;
-        } else {
-            /*
-             * Output endpoint - going idle and waiting for IN polling
-             */
-            spi_send_blocking(NULL, 0, GOING_IDLE);
-        }
-        //slavework();
-
     } else {
-        // USB
-        spi_send_string("DONE");
+        gpio_put(SLAVE_SPI_WAITING_TO_SEND, 1);
         spi_send_blocking(bugger, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
+        gpio_put(SLAVE_SPI_WAITING_TO_SEND, 1);
         slavework();
+
     }
 }

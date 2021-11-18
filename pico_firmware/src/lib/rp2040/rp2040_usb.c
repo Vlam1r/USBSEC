@@ -75,8 +75,9 @@ void hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_ma
         value |= or_mask;
         if (or_mask & USB_BUF_CTRL_AVAIL) {
             if (*ep->buffer_control & USB_BUF_CTRL_AVAIL) {
-                printf("WARNING: ep %d %s was already available", tu_edpt_number(ep->ep_addr),
-                       ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+                debug_print(PRINT_REASON_DCD_BUFFER, "WARNING: ep %d %s was already available",
+                            tu_edpt_number(ep->ep_addr),
+                            ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
             }
             *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
             // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
@@ -254,12 +255,13 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
         // If we have received some data, so can increase the length
         // we have received AFTER we have copied it to the user buffer at the appropriate offset
         if (!(buf_ctrl & USB_BUF_CTRL_FULL)) {
-            printf("WARNING: ep %d %s is cracked\n", tu_edpt_number(ep->ep_addr),
-                   ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+            debug_print(PRINT_REASON_DCD_BUFFER, "WARNING: ep %d %s is cracked\n", tu_edpt_number(ep->ep_addr),
+                        ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
         }
 
         memcpy(ep->user_buf, ep->hw_data_buf + buf_id * 64, xferred_bytes);
-        printf("Received %d bytes on [0x%x], %p", xferred_bytes, ep->ep_addr, ep->user_buf);
+        debug_print(PRINT_REASON_DCD_BUFFER, "Received %d bytes on [0x%x], %p", xferred_bytes, ep->ep_addr,
+                    ep->user_buf);
         //spi_send_blocking(ep->user_buf, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
         ep->xferred_len += xferred_bytes;
         ep->user_buf += xferred_bytes;

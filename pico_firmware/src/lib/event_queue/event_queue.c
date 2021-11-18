@@ -30,7 +30,7 @@ event_t *get_from_event_queue(void) {
     if (empty()) return NULL;
     int retidx = begin;
     begin = next(begin);
-    debug_print(EVENT_QUEUE, "[EVENT] Delete. New range [%d-%d]\n", begin, end);
+    debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Delete. New range [%d-%d]\n", begin, end);
     return &events[retidx];
 }
 
@@ -46,11 +46,14 @@ bool create_event(event_t *e) {
         memcpy(events[end].payload, e->payload, events[end].payload_length);
     }
     end = next(end);
-    debug_print(EVENT_QUEUE, "[EVENT] Delete. New range [%d-%d]\n", begin, end);
+    debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Insert. New range [%d-%d]\n", begin, end);
     return true;
 }
 
 void delete_event(event_t *e) {
-    if (e->payload_length != 0)
+    if (e->payload_length != 0) {
+        debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Freeing array of size %d\n", e->payload_length);
         free(e->payload);
+        debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Freed array of size %d\n", e->payload_length);
+    }
 }

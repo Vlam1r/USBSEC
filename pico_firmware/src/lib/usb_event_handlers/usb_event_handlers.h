@@ -120,5 +120,7 @@ void slavework(void);
 
 void masterwork(void);
 
+void spi_handler_init(void);
+
 
 #endif //PICO_FIRMWARE_USB_EVENT_HANDLERS_H

@@ -36,20 +36,6 @@ static void gpio_irq(uint pin, uint32_t event) {
     }
 }
 
-void set_idle(void) {
-    assert(get_role() == SPI_ROLE_SLAVE);
-    gpio_put(GPIO_SLAVE_IDLE_PIN, 1);
-}
-
-void clear_idle(void) {
-    assert(get_role() == SPI_ROLE_SLAVE);
-    gpio_put(GPIO_SLAVE_IDLE_PIN, 1);
-}
-
-bool slave_is_idle(void) {
-    return gpio_get(GPIO_SLAVE_IDLE_PIN);
-}
-
 void trigger_spi_irq(void) {
     assert(get_role() == SPI_ROLE_MASTER);
     gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
@@ -63,21 +49,23 @@ void messages_config(void) {
     gpio_init(GPIO_MASTER_SELECT_PIN);
     gpio_set_dir(GPIO_MASTER_SELECT_PIN, GPIO_IN);
 
-
     gpio_init(GPIO_SLAVE_IRQ_PIN);
+    gpio_init(GPIO_SLAVE_WAITING_PIN);
+    gpio_init(GPIO_SLAVE_DEVICE_ATTACHED_PIN);
     gpio_set_dir(GPIO_SLAVE_IRQ_PIN, (get_role() == SPI_ROLE_SLAVE) ? GPIO_IN : GPIO_OUT);
-    gpio_set_dir(GPIO_SLAVE_IDLE_PIN, (get_role() == SPI_ROLE_MASTER) ? GPIO_IN : GPIO_OUT);
+    gpio_set_dir(GPIO_SLAVE_WAITING_PIN, (get_role() == SPI_ROLE_MASTER) ? GPIO_IN : GPIO_OUT);
+    gpio_set_dir(GPIO_SLAVE_DEVICE_ATTACHED_PIN, (get_role() == SPI_ROLE_MASTER) ? GPIO_IN : GPIO_OUT);
     if (get_role() == SPI_ROLE_MASTER) {
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
-    } else {
-        gpio_put(GPIO_SLAVE_IDLE_PIN, 0);
         gpio_set_irq_enabled_with_callback(GPIO_SLAVE_IRQ_PIN, GPIO_IRQ_EDGE_RISE, true, gpio_irq);
+    } else {
+        gpio_put(GPIO_SLAVE_WAITING_PIN, 0);
     }
 
     if (get_role() == SPI_ROLE_MASTER) {
-        printf("--------\n MASTER \n--------\n");
+        debug_print(PRINT_REASON_PREAMBLE, "\n--------\n MASTER \n--------\n");
     } else {
-        printf("-------\n SLAVE \n-------\n");
+        debug_print(PRINT_REASON_PREAMBLE, "\n-------\n SLAVE \n-------\n");
     }
 
     spi_init(spi_default, SPI_BAUDRATE);
@@ -107,6 +95,11 @@ spi_role get_role(void) {
 void spi_send_blocking(const uint8_t *data, uint16_t len, uint16_t new_flag) {
     flag = new_flag;
 
+    if (get_role() == SPI_ROLE_MASTER) {
+        while (!gpio_get(GPIO_SLAVE_WAITING_PIN))
+            tight_loop_contents();
+    }
+
     uint8_t hdr[5] = {dummy, len >> 8, len, flag >> 8, flag};
     spi_write_blocking(spi_default, hdr, 5);
     if (get_role() == SPI_ROLE_MASTER) {
@@ -114,12 +107,12 @@ void spi_send_blocking(const uint8_t *data, uint16_t len, uint16_t new_flag) {
     }
     spi_write_blocking(spi_default, data, len);
     if (flag & DEBUG_PRINT_AS_HEX) {
-        debug_print(SPI_MESSAGES_OUT, "Sent data:\n");
-        debug_print_array(SPI_MESSAGES_OUT, data, len);
+        debug_print(PRINT_REASON_SPI_MESSAGES_OUT, "Sent data:\n");
+        debug_print_array(PRINT_REASON_SPI_MESSAGES_OUT, data, len);
     }
     if (flag & DEBUG_PRINT_AS_STRING) {
-        debug_print(SPI_MESSAGES_OUT, (char *) data);
-        debug_print(SPI_MESSAGES_OUT, "\n");
+        debug_print(PRINT_REASON_SPI_MESSAGES_OUT, (char *) data);
+        debug_print(PRINT_REASON_SPI_MESSAGES_OUT, "\n");
     }
 }
 
@@ -140,13 +133,13 @@ uint16_t spi_receive_blocking(uint8_t *data) {
     spi_read_blocking(spi_default, 0, data, len & 0xFF);
 
     if (flag & DEBUG_PRINT_AS_HEX) {
-        debug_print(SPI_MESSAGES_IN, "Received length %d\n", len);
-        debug_print(SPI_MESSAGES_IN, "Received data:\n");
-        debug_print_array(SPI_MESSAGES_IN, data, len);
+        debug_print(PRINT_REASON_SPI_MESSAGES_IN, "Received length %d\n", len);
+        debug_print(PRINT_REASON_SPI_MESSAGES_IN, "Received data:\n");
+        debug_print_array(PRINT_REASON_SPI_MESSAGES_IN, data, len);
     }
     if (flag & DEBUG_PRINT_AS_STRING) {
-        debug_print(SPI_MESSAGES_IN, (char *) data);
-        debug_print(SPI_MESSAGES_IN, "\n");
+        debug_print(PRINT_REASON_SPI_MESSAGES_IN, (char *) data);
+        debug_print(PRINT_REASON_SPI_MESSAGES_IN, "\n");
     }
     return len;
 }

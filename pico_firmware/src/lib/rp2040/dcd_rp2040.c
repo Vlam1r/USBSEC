@@ -176,7 +176,7 @@ static void hw_handle_buff_status(void) {
      * Second because out/in pairs are common, and we want to handle out before we request data in.
      */
     uint32_t remaining_buffers = usb_hw->buf_status;
-    printf("Bugger: 0b%b\n", remaining_buffers);
+    debug_print(PRINT_REASON_DCD_BUFFER, "Bugger: 0b%b\n", remaining_buffers);
 
     // EP0 OUT
     if (remaining_buffers & 0b10) hw_handle_buff_status_bit(remaining_buffers, 1);
@@ -226,19 +226,14 @@ static void reset_non_control_endpoints(void) {
 static void dcd_rp2040_irq_new(void) {
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
-    /*if(true){//} && status != USB_INTS_BUS_RESET_BITS && status != USB_INTS_DEV_SUSPEND_BITS){//  && status != 0x10000) {
-        uint8_t data[4] = {status == USB_INTS_SETUP_REQ_BITS, status >> 16, status >> 8, status};
-        //spi_send_blocking(data, 1, DEBUG_PRINT_AS_HEX);
-    }*/
 
-    debug_print(IRQ, "[IRQ] Master interrupt: %0#10lx\n", status);
+    debug_print(PRINT_REASON_IRQ, "[IRQ] Master interrupt: %0#10lx\n", status);
 
     if (status & USB_INTS_SETUP_REQ_BITS) {
         handled |= USB_INTS_SETUP_REQ_BITS;
         uint8_t const *setup = (uint8_t const *) &usb_dpram->setup_packet;
         // reset pid to both 1 (data and ack)
         reset_ep0_pid();
-        //spi_send_blocking(setup, 4, SETUP_DATA | DEBUG_PRINT_AS_HEX);
         // Pass setup packet to tiny usb
         dcd_event_setup_received_new(0, setup, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_SETUP_REC_BITS;
@@ -399,6 +394,10 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
 bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
     assert(rhport == 0);
+    if (total_bytes > 0 && ep_addr & 0x80) {
+        debug_print(PRINT_REASON_USB_EXCHANGES, "Sending to host:\n");
+        debug_print_array(PRINT_REASON_USB_EXCHANGES, buffer, total_bytes);
+    }
     hw_endpoint_xfer(ep_addr, buffer, total_bytes);
     return true;
 }

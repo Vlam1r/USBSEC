@@ -11,18 +11,22 @@
 #include <stdarg.h>
 
 typedef enum {
-    SPI_MESSAGES_IN,
-    SPI_MESSAGES_OUT,
-    EVENT_QUEUE,
-    EVENT,
-    IRQ,
+    PRINT_REASON_SPI_MESSAGES_IN,
+    PRINT_REASON_SPI_MESSAGES_OUT,
+    PRINT_REASON_EVENT_QUEUE,
+    PRINT_REASON_EVENT,
+    PRINT_REASON_IRQ,
+    PRINT_REASON_PREAMBLE,
+    PRINT_REASON_USB_EXCHANGES,
+    PRINT_REASON_DCD_BUFFER,
+    PRINT_REASON_SETUP_REACTION,
     /**/
-    PRINT_COUNT
+    PRINT_REASON_COUNT
 } print_reason;
 
 void debug_print(print_reason reason, char *format, ...);
 
-void debug_print_array(print_reason reason, const uint8_t *data, int len);
+void debug_print_array(print_reason reason, const uint8_t *data, uint32_t len);
 
 void set_print_flag(print_reason reason);
 
