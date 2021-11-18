@@ -41,6 +41,7 @@ void slavework() {
          * Open sent endpoint
          */
         memcpy(&registry[reg_count++], bugger, len);
+        hcd_edpt_open(bugger);
     } else if (get_flag() & SETUP_DATA) {
         /*
          * Data is copied into setup
@@ -54,7 +55,6 @@ void slavework() {
          */
         level = 3;
         uint8_t reg_idx = bugger[len - 1];
-        if (curredpt != reg_idx) hcd_edpt_open(&registry[reg_idx]); // TODO HARDEN
         curredpt = reg_idx;
         hcd_edpt_xfer(0, 0, registry[reg_idx].bEndpointAddress, bugger, len - 1);
     } else if (get_flag() & SLAVE_DATA) {

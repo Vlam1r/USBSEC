@@ -24,8 +24,8 @@ int main() {
     set_print_flag(PRINT_REASON_IRQ);
     set_print_flag(PRINT_REASON_USB_EXCHANGES);
     set_print_flag(PRINT_REASON_DCD_BUFFER);
-    //set_print_flag(PRINT_REASON_SPI_MESSAGES_IN);
-    //set_print_flag(PRINT_REASON_SPI_MESSAGES_OUT);
+    set_print_flag(PRINT_REASON_SPI_MESSAGES_IN);
+    set_print_flag(PRINT_REASON_SPI_MESSAGES_OUT);
     //set_print_flag(PRINT_REASON_EVENT);
     //set_print_flag(PRINT_REASON_EVENT_QUEUE);
     //set_print_flag(PRINT_REASON_SETUP_REACTION);

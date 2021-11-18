@@ -105,7 +105,7 @@ static void handle_setup_event(uint8_t const *setup) {
                 dcd_edpt_open_new(0, edpt);
                 // Start read
                 debug_print(PRINT_REASON_SETUP_REACTION, "New endpoint registered: 0x%x\n", edpt->bEndpointAddress);
-                dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64);
+                dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64); // Query OUT edpt
                 spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN); // TODO ONLY IF INTERRUPT?
                 insert_into_registry(edpt);
             }
@@ -139,11 +139,12 @@ static void handle_xfer_complete(uint8_t ep_addr, uint8_t *data, uint32_t xferre
         data[xferred_bytes] = 1; //TODO
         spi_send_blocking(data, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
     } else {
-        uint8_t arr[100];
+        uint8_t arr[100]; // TODO Knock on all endpoints
         memset(arr, 0, 64);
         arr[64] = 0;
         spi_send_blocking(arr, 64 + 1, USB_DATA);
     }
+    printf("Completed transfer \n");
 }
 
 void spi_handler_init(void) {
