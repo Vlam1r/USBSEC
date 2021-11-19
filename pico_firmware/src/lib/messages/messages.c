@@ -43,13 +43,16 @@ static void gpio_irq(uint pin, uint32_t event) {
     switch (pin) {
         case GPIO_SLAVE_IRQ_PIN:
             assert(event == GPIO_IRQ_EDGE_RISE);
-            if (get_role() == SPI_ROLE_SLAVE) {
-                if (handler != NULL) {
-                    spi_send_blocking(NULL, 0, 0);
-                    handler();
-                }
-            }
+            assert(get_role() == SPI_ROLE_SLAVE);
+            assert(handler != NULL);
+            spi_send_blocking(NULL, 0, 0);
+            handler();
             break;
+        case GPIO_SLAVE_IDLE_PIN:
+            assert(event == GPIO_IRQ_LEVEL_HIGH);
+            assert(get_role() == SPI_ROLE_MASTER);
+            assert(handler != NULL);
+            handler();
         default:
             break;
     }
@@ -84,10 +87,12 @@ void messages_config(void) {
 
 
     gpio_init(GPIO_SLAVE_IRQ_PIN);
+    gpio_init(GPIO_SLAVE_IDLE_PIN);
     gpio_set_dir(GPIO_SLAVE_IRQ_PIN, (get_role() == SPI_ROLE_SLAVE) ? GPIO_IN : GPIO_OUT);
     gpio_set_dir(GPIO_SLAVE_IDLE_PIN, (get_role() == SPI_ROLE_MASTER) ? GPIO_IN : GPIO_OUT);
     if (get_role() == SPI_ROLE_MASTER) {
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
+        gpio_set_irq_enabled_with_callback(GPIO_SLAVE_IRQ_PIN, GPIO_IRQ_LEVEL_HIGH, true, gpio_irq);
     } else {
         gpio_put(GPIO_SLAVE_IDLE_PIN, 0);
         gpio_set_irq_enabled_with_callback(GPIO_SLAVE_IRQ_PIN, GPIO_IRQ_EDGE_RISE, true, gpio_irq);
