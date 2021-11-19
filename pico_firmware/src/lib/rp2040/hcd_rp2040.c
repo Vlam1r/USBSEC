@@ -52,6 +52,7 @@ static_assert(PICO_USB_HOST_INTERRUPT_ENDPOINTS <= USB_MAX_ENDPOINTS, "");
 // Host mode uses one shared endpoint register for non-interrupt endpoint
 static struct hw_endpoint ep_pool[1 + PICO_USB_HOST_INTERRUPT_ENDPOINTS];
 #define epx (ep_pool[0])
+hw_endpoint_t *active_ep;
 
 #define usb_hw_set   hw_set_alias(usb_hw)
 #define usb_hw_clear hw_clear_alias(usb_hw)
@@ -123,7 +124,7 @@ static void hw_handle_buff_status(void) {
             TU_LOG(3, "Single Buffered: ");
         }
         TU_LOG_HEX(3, ep_ctrl);
-        _handle_buff_status_bit(bit, ep);
+        _handle_buff_status_bit(bit, active_ep);
     }
 
     // Check interrupt endpoints
@@ -249,7 +250,7 @@ static struct hw_endpoint *_next_free_interrupt_ep(void) {
     return ep;
 }
 
-static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type) {
+static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type, uint8_t ep_addr) {
     struct hw_endpoint *ep = NULL;
 
     if (transfer_type == TUSB_XFER_INTERRUPT) {
@@ -264,7 +265,9 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type) {
         // etc
         ep->hw_data_buf = &usbh_dpram->epx_data[64 * (ep->interrupt_num + 2)];
     } else {
-        ep = &epx;
+        ep = (ep_addr == 0) ? &epx : _next_free_interrupt_ep();
+        assert(ep);
+        ep->interrupt_num = 255; // To signal that this is NOT an interrupt endpoint
         ep->buffer_control = &usbh_dpram->epx_buf_ctrl;
         ep->endpoint_control = &usbh_dpram->epx_ctrl;
         ep->hw_data_buf = &usbh_dpram->epx_data[0];
@@ -428,7 +431,7 @@ bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc) {
     pico_trace("hcd_edpt_open dev_addr %d, ep_addr %d\n", dev_addr, ep_desc->bEndpointAddress);
 
     // Allocated differently based on if it's an interrupt endpoint or not
-    struct hw_endpoint *ep = _hw_endpoint_allocate(ep_desc->bmAttributes.xfer);
+    struct hw_endpoint *ep = _hw_endpoint_allocate(ep_desc->bmAttributes.xfer, ep_desc->bEndpointAddress);
     assert(ep);
 
     _hw_endpoint_init(ep,
@@ -451,9 +454,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 
     // Get appropriate ep. Either EPX or interrupt endpoint
 
-    struct hw_endpoint *ep = &epx; //get_dev_ep(dev_addr, ep_addr); TODO
-
+    struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
     assert(ep);
+    active_ep = ep;
 
     // Control endpoint can change direction 0x00 <-> 0x80
     if (ep_addr != ep->ep_addr /* && ep_num == 0*/) {
@@ -466,7 +469,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     // If a normal transfer (non-interrupt) then initiate using
     // sie ctrl registers. Otherwise interrupt ep registers should
     // already be configured
-    if (ep == &epx) {
+    if (ep->interrupt_num == 255) {
         hw_endpoint_xfer_start(ep, buffer, buflen);
 
         // That has set up buffer control, endpoint control etc
@@ -492,11 +495,12 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     memcpy((void *) &usbh_dpram->setup_packet[0], setup_packet, 8);
 
     // Configure EP0 struct with setup info for the trans complete
-    struct hw_endpoint *ep = _hw_endpoint_allocate(0);
+    struct hw_endpoint *ep = _hw_endpoint_allocate(0, 0);
 
     // EP0 out
     _hw_endpoint_init(ep, dev_addr, 0x00, ep->wMaxPacketSize, 0, 0);
     assert(ep->configured);
+    active_ep = ep;
 
     ep->remaining_len = 8;
     ep->active = true;

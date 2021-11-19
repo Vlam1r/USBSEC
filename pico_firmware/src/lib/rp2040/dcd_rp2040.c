@@ -149,32 +149,56 @@ static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_by
     hw_endpoint_xfer_start(ep, buffer, total_bytes);
 }
 
+
+static void hw_handle_buff_status_bit(uint32_t remaining_buffers, uint i) {
+
+    uint bit = 1u << i;
+
+    // clear this in advance
+    usb_hw_clear->buf_status = bit;
+
+    // IN transfer for even i, OUT transfer for odd i
+    struct hw_endpoint *ep = hw_endpoint_get_by_num(i >> 1u, !(i & 1u));
+
+    // Continue xfer
+    bool done = hw_endpoint_xfer_continue(ep);
+    remaining_buffers &= ~bit;
+    if (done) {
+        // Notify
+        dcd_event_xfer_complete_new(0, ep->ep_addr, ep->xferred_len, XFER_RESULT_SUCCESS, true);
+        hw_endpoint_reset_transfer_new(ep);
+    }
+}
+
 static void hw_handle_buff_status(void) {
+    /*
+     * We want to check buffers in this order: EP0 OUT, EP0 IN, forall x. EPx OUT, forall x. EPx IN
+     * First because EP0 always has priority.
+     * Second because out/in pairs are common, and we want to handle out before we request data in.
+     */
     uint32_t remaining_buffers = usb_hw->buf_status;
-    pico_trace("buf_status = 0x%08x\n", remaining_buffers);
-    printf("Bugger: %d\n", remaining_buffers);
+    printf("Bugger: 0b%b\n", remaining_buffers);
 
-    uint bit = 1u;
-    for (uint i = 0; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i++) {
+    // EP0 OUT
+    if (remaining_buffers & 0b10) hw_handle_buff_status_bit(remaining_buffers, 1);
+
+    // EP0 IN
+    if (remaining_buffers & 0b1) hw_handle_buff_status_bit(remaining_buffers, 0);
+
+    // EPx OUT
+    for (uint i = 3; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i += 2) {
+        uint bit = 1u << i;
         if (remaining_buffers & bit) {
-            // clear this in advance
-            usb_hw_clear->buf_status = bit;
-
-            // IN transfer for even i, OUT transfer for odd i
-            struct hw_endpoint *ep = hw_endpoint_get_by_num(i >> 1u, !(i & 1u));
-
-            // Continue xfer
-            bool done = hw_endpoint_xfer_continue(ep);
-            remaining_buffers &= ~bit;
-            if (done) {
-                // Notify
-                if (bit <= 2 || remaining_buffers == 0)
-                    dcd_event_xfer_complete_new(0, ep->ep_addr, ep->xferred_len, XFER_RESULT_SUCCESS, true);
-                //hw_endpoint_buffer_control_update32(ep, 0, USB_BUF_CTRL_FULL);
-                hw_endpoint_reset_transfer_new(ep);
-            }
+            hw_handle_buff_status_bit(remaining_buffers, i);
         }
-        bit <<= 1u;
+    }
+
+    // EPx IN
+    for (uint i = 2; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i += 2) {
+        uint bit = 1u << i;
+        if (remaining_buffers & bit) {
+            hw_handle_buff_status_bit(remaining_buffers, i);
+        }
     }
 }
 
