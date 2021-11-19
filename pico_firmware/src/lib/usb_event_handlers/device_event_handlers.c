@@ -105,7 +105,8 @@ static void handle_setup_event(uint8_t const *setup) {
                 dcd_edpt_open_new(0, edpt);
                 // Start read
                 debug_print(PRINT_REASON_SETUP_REACTION, "New endpoint registered: 0x%x\n", edpt->bEndpointAddress);
-                dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64); // Query OUT edpt
+                if (~edpt->bEndpointAddress & 0x80)
+                    dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64); // Query OUT edpt
                 spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN); // TODO ONLY IF INTERRUPT?
                 insert_into_registry(edpt);
             }
@@ -119,6 +120,8 @@ static void handle_setup_event(uint8_t const *setup) {
     dcd_edpt_xfer_new(0, 0x80, arr, len);
     dcd_edpt_xfer_new(0, 0x00, NULL, 0);
 }
+
+bool first_time = true;
 
 static void handle_xfer_complete(uint8_t ep_addr, uint8_t *data, uint32_t xferred_bytes) {
 
@@ -138,8 +141,15 @@ static void handle_xfer_complete(uint8_t ep_addr, uint8_t *data, uint32_t xferre
     if (~ep_addr & 0x80) {
         data[xferred_bytes] = 1; //TODO
         spi_send_blocking(data, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
+        if (first_time) {
+            uint8_t arr[100]; // TODO Knock on all endpoints
+            memset(arr, 0, 64);
+            arr[64] = 0;
+            spi_send_blocking(arr, 64 + 1, USB_DATA);
+            //first_time = false;
+        }
     } else {
-        uint8_t arr[100]; // TODO Knock on all endpoints
+        uint8_t arr[100];
         memset(arr, 0, 64);
         arr[64] = 0;
         spi_send_blocking(arr, 64 + 1, USB_DATA);
@@ -164,6 +174,7 @@ static void handle_spi_slave_event(void) {
         debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Packet for 0x%x\n", ep_addr);
         if (~ep_addr & 0x80) {
             dcd_edpt_xfer_new(0, ep_addr, bugger, 64);
+            debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Listening to port 0x%x\n", ep_addr);
         } else {
             dcd_edpt_xfer_new(0, ep_addr, arr, len);
         }
