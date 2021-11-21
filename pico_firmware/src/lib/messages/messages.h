@@ -11,11 +11,29 @@
 #include "pico/multicore.h"
 #include <stdio.h>
 #include <string.h>
+#include <hardware/structs/usb.h>
+#include "../debug/debug.h"
 
+/*
+ * High for master, low for slave
+ */
 #define GPIO_MASTER_SELECT_PIN 2
+/*
+ * High when device is connected to slave
+ */
+#define GPIO_SLAVE_DEVICE_ATTACHED_PIN 15
+/*
+ * Slave -> Master: Data to send
+ */
 #define GPIO_SLAVE_IRQ_PIN 14
+/*
+ * High when slave is waiting to receive over spi
+ */
 #define GPIO_SLAVE_WAITING_PIN 13
-#define GPIO_SLAVE_IDLE_PIN 12
+/*
+ * Master -> Slave: Data to send
+ */
+#define GPIO_SLAVE_RECEIVE_PIN 12
 #define SPI_BAUDRATE (int)(4*1000*1000) // 8MHz is too much at 144MHz clock
 
 typedef enum {
@@ -23,9 +41,8 @@ typedef enum {
     SETUP_DATA = 0x2,
     RESET_USB = 0x4,
     EDPT_OPEN = 0x8,
-    EVENTS = 0x10,
-    GOING_IDLE = 0x20,
-
+    SLAVE_DATA = 0x10,
+    /**/
     DEBUG_PRINT_AS_STRING = 0x4000,
     DEBUG_PRINT_AS_HEX = 0x8000
 } msg_type;
@@ -36,8 +53,6 @@ typedef enum {
 } spi_role;
 
 typedef void(*void_func_t)(void);
-
-void print_arr_hex(const uint8_t *data, int len);
 
 void messages_config(void);
 
@@ -55,16 +70,8 @@ uint16_t get_flag();
 
 int spi_await(uint8_t *data, uint16_t cond);
 
-int spi_await_with_timeout(uint8_t *data, uint16_t cond, uint64_t timeout_us_new);
-
 void set_spi_pin_handler(void_func_t fun);
 
 void trigger_spi_irq(void);
-
-void set_waiting(void);
-
-void clear_waiting(void);
-
-bool slave_is_idle(void);
 
 #endif //PICO_FIRMWARE_MESSAGES_H

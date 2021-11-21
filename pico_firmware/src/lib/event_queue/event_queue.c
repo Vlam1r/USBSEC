@@ -23,19 +23,36 @@ static bool full(void) {
 }
 
 uint8_t queue_size(void) {
-    return (end - begin) % EVENT_QUEUE_MAX_CAPACITY;
+    return (end + EVENT_QUEUE_MAX_CAPACITY - begin) % EVENT_QUEUE_MAX_CAPACITY;
 }
 
 event_t *get_from_event_queue(void) {
     if (empty()) return NULL;
     int retidx = begin;
-    begin = (begin + 1) % EVENT_QUEUE_MAX_CAPACITY;
+    begin = next(begin);
+    debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Delete. New range [%d-%d]\n", begin, end);
     return &events[retidx];
 }
 
-bool insert_into_event_queue(event_t *e) {
-    if (full()) return false;
+void create_event(event_t *e) {
+    if (full()) panic("EVENT QUEUE FULL!!!");
+
     memcpy(&events[end], e, sizeof(event_t));
+    if (events[end].payload_length != 0) {
+        events[end].payload = malloc(events[end].payload_length + 1);
+        if (events[end].payload == NULL) {
+            panic("OUT OF MEMORY!!!");
+        }
+        memcpy(events[end].payload, e->payload, events[end].payload_length);
+    }
     end = next(end);
-    return true;
+    debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Insert %d. New range [%d-%d]\n", e->e_type, begin, end);
+}
+
+void delete_event(event_t *e) {
+    if (e->payload_length != 0) {
+        debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Freeing array of size %d\n", e->payload_length);
+        free(e->payload);
+        debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Freed array of size %d\n", e->payload_length);
+    }
 }

@@ -174,8 +174,8 @@ static void hcd_rp2040_irq_new(void) {
     uint32_t handled = 0;
 
     uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
-    spi_send_string("Slave interrupt");
-    spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
+    //spi_send_string("Slave interrupt");
+    //spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
 
     if (status & USB_INTS_HOST_CONN_DIS_BITS) {
         handled |= USB_INTS_HOST_CONN_DIS_BITS;

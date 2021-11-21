@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.17)
 include(pico_sdk_import.cmake)
 
 project(pico_firmware
-        VERSION 0.0.1
+        VERSION 0.1.0
         DESCRIPTION "USBSEC Firmware for RPi Pico"
         LANGUAGES C CXX ASM)
 
@@ -20,31 +20,27 @@ add_compile_options(-Wall
         )
 
 add_executable(pico_firmware
-        #        src/main.c
-        #        src/main_spi.c
         src/main_spi_tusb.c
-        #        src/lib/usb_phy/usb_phy.c
-        #        src/lib/usb_pio/pio_usb.c
         src/lib/messages/messages.c
-        #        src/lib/usb_phy/usb_host.c
-        #        src/lib/usb_phy/usb_host.h
         src/lib/rp2040/dcd_rp2040.c
         src/lib/rp2040/hcd_rp2040.c
         src/lib/rp2040/rp2040_usb.c
         src/lib/usb_event_handlers/device_event_handlers.c
         src/lib/usb_event_handlers/host_event_handlers.c
-        src/lib/event_queue/event_queue.c src/lib/edpt_registry/edpt_registry.c src/lib/edpt_registry/edpt_registry.h)
+        src/lib/event_queue/event_queue.c
+        src/lib/edpt_registry/edpt_registry.c
+        src/lib/debug/debug.c)
 
 
 #pico_generate_pio_header(pico_firmware ${CMAKE_CURRENT_LIST_DIR}/src/lib/i2c/i2c.pio)
-pico_generate_pio_header(pico_firmware ${CMAKE_CURRENT_LIST_DIR}/src/lib/usb_pio/usb.pio)
+#pico_generate_pio_header(pico_firmware ${CMAKE_CURRENT_LIST_DIR}/src/lib/usb_pio/usb.pio)
 
 target_link_libraries(pico_firmware
         pico_stdlib
         pico_multicore
         hardware_resets
         hardware_irq
-        hardware_pio
+        #hardware_pio
         hardware_spi
         )
 
