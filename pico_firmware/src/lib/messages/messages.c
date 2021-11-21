@@ -48,7 +48,7 @@ static void gpio_irq(uint pin, uint32_t event) {
             spi_send_blocking(NULL, 0, 0);
             handler();
             break;
-        case GPIO_SLAVE_IDLE_PIN:
+        case GPIO_SLAVE_WAITING_PIN:
             assert(event == GPIO_IRQ_LEVEL_HIGH);
             assert(get_role() == SPI_ROLE_MASTER);
             assert(handler != NULL);
@@ -58,14 +58,14 @@ static void gpio_irq(uint pin, uint32_t event) {
     }
 }
 
-void set_idle(void) {
+void set_waiting(void) {
     assert(get_role() == SPI_ROLE_SLAVE);
-    gpio_put(GPIO_SLAVE_IDLE_PIN, 1);
+    gpio_put(GPIO_SLAVE_WAITING_PIN, 1);
 }
 
-void clear_idle(void) {
+void clear_waiting(void) {
     assert(get_role() == SPI_ROLE_SLAVE);
-    gpio_put(GPIO_SLAVE_IDLE_PIN, 1);
+    gpio_put(GPIO_SLAVE_WAITING_PIN, 1);
 }
 
 bool slave_is_idle(void) {
@@ -87,14 +87,16 @@ void messages_config(void) {
 
 
     gpio_init(GPIO_SLAVE_IRQ_PIN);
+    gpio_init(GPIO_SLAVE_WAITING_PIN);
     gpio_init(GPIO_SLAVE_IDLE_PIN);
     gpio_set_dir(GPIO_SLAVE_IRQ_PIN, (get_role() == SPI_ROLE_SLAVE) ? GPIO_IN : GPIO_OUT);
+    gpio_set_dir(GPIO_SLAVE_WAITING_PIN, (get_role() == SPI_ROLE_MASTER) ? GPIO_IN : GPIO_OUT);
     gpio_set_dir(GPIO_SLAVE_IDLE_PIN, (get_role() == SPI_ROLE_MASTER) ? GPIO_IN : GPIO_OUT);
     if (get_role() == SPI_ROLE_MASTER) {
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
         gpio_set_irq_enabled_with_callback(GPIO_SLAVE_IRQ_PIN, GPIO_IRQ_LEVEL_HIGH, true, gpio_irq);
     } else {
-        gpio_put(GPIO_SLAVE_IDLE_PIN, 0);
+        gpio_put(GPIO_SLAVE_WAITING_PIN, 0);
         gpio_set_irq_enabled_with_callback(GPIO_SLAVE_IRQ_PIN, GPIO_IRQ_EDGE_RISE, true, gpio_irq);
     }
 
@@ -130,10 +132,9 @@ spi_role get_role(void) {
 /// \param new_flag New flag to be set on both master and slave
 void spi_send_blocking(const uint8_t *data, uint16_t len, uint16_t new_flag) {
     flag = new_flag;
-    /*if (get_role() == SPI_ROLE_SLAVE) {
-        printf("Setting irq pin high\n");
-        gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
-    }*/
+    if (get_role() == SPI_ROLE_MASTER && gpio_get(GPIO_SLAVE_IDLE_PIN)) {
+        trigger_spi_irq();
+    }
     uint8_t hdr[5] = {dummy, len >> 8, len, flag >> 8, flag};
     spi_write_blocking(spi_default, hdr, 5);
     if (get_role() == SPI_ROLE_MASTER) {

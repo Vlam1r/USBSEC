@@ -14,7 +14,8 @@
 
 #define GPIO_MASTER_SELECT_PIN 2
 #define GPIO_SLAVE_IRQ_PIN 14
-#define GPIO_SLAVE_IDLE_PIN 13
+#define GPIO_SLAVE_WAITING_PIN 13
+#define GPIO_SLAVE_IDLE_PIN 12
 #define SPI_BAUDRATE (int)(4*1000*1000) // 8MHz is too much at 144MHz clock
 
 typedef enum {
@@ -60,9 +61,9 @@ void set_spi_pin_handler(void_func_t fun);
 
 void trigger_spi_irq(void);
 
-void set_idle(void);
+void set_waiting(void);
 
-void clear_idle(void);
+void clear_waiting(void);
 
 bool slave_is_idle(void);
 

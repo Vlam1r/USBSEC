@@ -63,7 +63,7 @@ void hw_endpoint_reset_transfer_new(struct hw_endpoint *ep) {
     ep->active = false;
     ep->remaining_len = 0;
     ep->xferred_len = 0;
-    //ep->user_buf = 0;
+    ep->user_buf = 0;
 }
 
 void hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {

@@ -16,7 +16,7 @@ int main() {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    stdio_uart_init();
+    //stdio_uart_init();
     messages_config();
 
     if (get_role() == SPI_ROLE_MASTER) {

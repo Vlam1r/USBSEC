@@ -11,8 +11,19 @@ bool cfg_set = false;
  * Device Events
  */
 
+void handle_result() {
+    int len = spi_await(bugger, USB_DATA) - 1;
+    uint8_t ep_addr = bugger[len];
+    if (ep_addr & 0x80) {
+        dcd_edpt_xfer_new(0, ep_addr, bugger, len);
+    } else {
+        dcd_edpt_xfer_new(0, ep_addr, bugger, 64);
+    }
+}
+
 void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_isr) {
     tusb_control_request_t *const req = (tusb_control_request_t *) setup;
+    set_spi_pin_handler(handle_result);
     if (req->bRequest == 0x5 /*SET ADDRESS*/) {
         /*
          * If request is SET_ADDRESS we do not want to pass it on.
@@ -42,7 +53,8 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
                 dcd_edpt_open_new(rhport, edpt);
                 // Start read
                 printf("0x%x\n", edpt->bEndpointAddress);
-                dcd_edpt_xfer_new(rhport, edpt->bEndpointAddress, bugger, 64);
+                if (~edpt->bEndpointAddress & 0x80)
+                    dcd_edpt_xfer_new(rhport, edpt->bEndpointAddress, bugger, 64);
                 spi_send_blocking((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN); // TODO ONLY IF INTERRUPT
                 insert_into_registry(edpt);
                 spi_await(bugger, USB_DATA);
@@ -59,8 +71,6 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
     dcd_edpt_xfer_new(rhport, 0x00, NULL, 0);
 }
 
-static bool first_time = true;
-
 void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr) {
 
     if (((tusb_control_request_t *) usb_dpram->setup_packet)->bRequest == 0x5 /*SET ADDRESS*/) {
@@ -74,8 +84,7 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
     if (ep_addr == 0 || ep_addr == 0x80) return;
 
 
-    printf("+-----\n|Completed transfer on %d\n+-----\n", ep_addr);
-    printf("Bugger points to %p\n", bugger);
+    printf("+-----\n|Completed transfer on %d of %d\n+-----\n", ep_addr, xferred_bytes);
     if (xferred_bytes == 0 || result != 0) return;
 
     if (~ep_addr & 0x80) {
@@ -84,33 +93,11 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
          */
         bugger[xferred_bytes] = 1; //TODO
         spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
-        spi_await(bugger, GOING_IDLE);
-        trigger_spi_irq();
-        dcd_edpt_xfer_new(rhport, ep_addr, bugger, 64);
     } else {
         memset(bugger, 0, 64);
         bugger[64] = 0;
         printf("Poll %d [0x%x]\n", 0, 0x81);
         spi_send_blocking(bugger, 64 + 1, USB_DATA);
-
-        printf("Waiting idle \n");
-        int len = spi_await(bugger, USB_DATA);
-        dcd_edpt_xfer_new(rhport, 0x81, bugger, len);
-        trigger_spi_irq();
-    }
-}
-
-void handle_result() {
-    int len = spi_await(bugger, USB_DATA) - 1;
-    uint8_t ep_addr = bugger[len];
-    if (ep_addr & 0x80) {
-        dcd_edpt_xfer_new(0, ep_addr, bugger, len);
-        if (first_time) {
-            dcd_edpt_xfer_new(0, ep_addr, bugger, len);
-            first_time = false;
-        }
-    } else {
-        dcd_edpt_xfer_new(0, ep_addr, bugger, 64);
     }
 }
 

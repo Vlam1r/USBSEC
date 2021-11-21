@@ -26,8 +26,8 @@ bool print = false;
 int curredpt = -1;
 
 void slavework() {
-    clear_idle();
-
+    clear_waiting();
+    gpio_put(GPIO_SLAVE_IDLE_PIN, 0);
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
     int len = spi_receive_blocking(bugger);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);
@@ -63,6 +63,7 @@ void slavework() {
         uint8_t reg_idx = bugger[len - 1];
         curredpt = reg_idx;
         hcd_edpt_xfer(0, 0, registry[reg_idx].bEndpointAddress, bugger, len - 1);
+        gpio_put(GPIO_SLAVE_IDLE_PIN, 1);
     } else if (get_flag() & EVENTS) {
         /*
          * Handle event queue
@@ -93,7 +94,7 @@ void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
 
 void hcd_event_xfer_complete(uint8_t dev_addr_old, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
     uint8_t data[5] = {0xee, xferred_bytes, setup_packet.wLength, ep_addr, level};
-    spi_send_blocking(data, 5, DEBUG_PRINT_AS_HEX);
+    //spi_send_blocking(data, 5, DEBUG_PRINT_AS_HEX);
 
     if (level == 0) {
         // SETUP
@@ -117,7 +118,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr_old, uint8_t ep_addr, uint32_t xfe
         spi_send_blocking(bugger, outlen, USB_DATA | DEBUG_PRINT_AS_HEX);
         slavework();
     } else {
-        set_idle();
+        set_waiting();
         bugger[xferred_bytes] = ep_addr;
         spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
     }
