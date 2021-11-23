@@ -25,15 +25,16 @@ bool print = false;
 int curredpt = -1;
 
 void slavework() {
-
+    gpio_put(GPIO_LED_PIN, 1);
     gpio_put(GPIO_SLAVE_WAITING_PIN, 1);
-    int len = spi_receive_blocking(bugger);
+    int len = recieve_message(bugger);
     gpio_put(GPIO_SLAVE_WAITING_PIN, 0);
 
     if (get_flag() & RESET_USB) {
         /*
          * Reset USB device
          */
+        gpio_put(GPIO_LED_PIN, 0);
         dev_addr = 0; // TODO is this needed?
         usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
     } else if (get_flag() & EDPT_OPEN) {
@@ -62,11 +63,11 @@ void slavework() {
          * Empty data (event) queue to master
          */
         uint8_t queue_len = queue_size();
-        spi_send_blocking(&queue_len, 1, SLAVE_DATA);
+        send_message(&queue_len, 1, SLAVE_DATA);
         while (queue_size() > 0) {
             event_t *e = get_from_event_queue();
             e->payload[e->payload_length] = e->ep_addr;
-            spi_send_blocking(e->payload, e->payload_length + 1, SLAVE_DATA);
+            send_message(e->payload, e->payload_length + 1, SLAVE_DATA);
             delete_event(e);
         }
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
@@ -82,6 +83,7 @@ void slavework() {
         hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
         dev_addr = 7;
     }
+
 }
 
 void hcd_event_device_attach(uint8_t rhport, bool in_isr) {

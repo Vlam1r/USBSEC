@@ -5,36 +5,25 @@
 #ifndef PICO_FIRMWARE_MESSAGES_H
 #define PICO_FIRMWARE_MESSAGES_H
 
-#include "pico/stdlib.h"
-#include "hardware/spi.h"
-#include "pico/binary_info.h"
-#include "pico/multicore.h"
-#include <stdio.h>
-#include <string.h>
 #include <hardware/structs/usb.h>
-#include "../debug/debug.h"
+#include "pico/stdlib.h"
 
-/*
- * High for master, low for slave
- */
-#define GPIO_MASTER_SELECT_PIN 2
-/*
- * High when device is connected to slave
- */
-#define GPIO_SLAVE_DEVICE_ATTACHED_PIN 15
-/*
- * Slave -> Master: Data to send
- */
-#define GPIO_SLAVE_IRQ_PIN 14
-/*
- * High when slave is waiting to receive over spi
- */
-#define GPIO_SLAVE_WAITING_PIN 13
-/*
- * Master -> Slave: Data to send
- */
-#define GPIO_SLAVE_RECEIVE_PIN 12
-#define SPI_BAUDRATE (int)(4*1000*1000) // 8MHz is too much at 144MHz clock
+enum gpio_pin {
+    GPIO_MASTER_SELECT_PIN = 2,             // High for master, low for slave
+    /**/
+    GPIO_SLAVE_DEVICE_ATTACHED_PIN = 15,    // High when device is connected to slave
+    GPIO_SLAVE_IRQ_PIN = 14,                // Slave -> Master: Data to send
+    GPIO_SLAVE_WAITING_PIN = 13,            // High when slave is waiting to receive over spi
+    GPIO_SLAVE_RECEIVE_PIN = 12,            // Master -> Slave: Data to send
+    /**/
+    GPIO_LED_PIN = 25                       // Onboard LED Control
+};
+static_assert(GPIO_LED_PIN == PICO_DEFAULT_LED_PIN, "");
+
+typedef enum {
+    SPI_ROLE_MASTER,
+    SPI_ROLE_SLAVE
+} spi_role;
 
 typedef enum {
     USB_DATA = 0x1,
@@ -44,35 +33,23 @@ typedef enum {
     SLAVE_DATA = 0x10,
     CHG_ADDR = 0x20,
     /**/
-    DEBUG_PRINT_AS_STRING = 0x4000,
+    LAST_PACKET = 0x1000,
+    /**/
     DEBUG_PRINT_AS_HEX = 0x8000
 } msg_type;
-
-typedef enum {
-    SPI_ROLE_MASTER,
-    SPI_ROLE_SLAVE
-} spi_role;
 
 typedef void(*void_func_t)(void);
 
 void messages_config(void);
 
-void spi_send_blocking(const uint8_t *data, uint16_t len, uint16_t new_flag);
-
-uint16_t spi_receive_blocking(uint8_t *data);
-
-void spi_send_string(char *data);
-
 spi_role get_role(void);
-
-void spi_send_async(const uint8_t *data, uint8_t len, uint8_t flag);
-
-uint16_t get_flag();
-
-int spi_await(uint8_t *data, uint16_t cond);
 
 void set_spi_pin_handler(void_func_t fun);
 
-void trigger_spi_irq(void);
+void send_message(const uint8_t *data, uint16_t len, uint16_t new_flag);
+
+uint16_t recieve_message(uint8_t *data);
+
+uint16_t get_flag(void);
 
 #endif //PICO_FIRMWARE_MESSAGES_H
