@@ -7,6 +7,7 @@
 static uint8_t bugger[1000];
 bool handling_setup = false;
 bool permit_0x81 = false;
+int count0x81 = 0;
 uint8_t other_edpt;
 
 /*
@@ -25,10 +26,16 @@ static void handle_spi_slave_event(void) {
         uint8_t ep_addr = arr[--len];
         debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Packet for 0x%x\n", ep_addr);
         if (~ep_addr & 0x80) {
+            memset(arr, 0, 64);
+            arr[64] = other_edpt; // TODO
+            debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Sent to 0x%x.\n", other_edpt);
+            spi_send_blocking(arr, 64 + 1, USB_DATA);
+
             dcd_edpt_xfer_new(0, ep_addr, bugger, 64);
             debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Listening to port 0x%x\n", ep_addr);
         } else {
             permit_0x81 = true;
+            count0x81++;
             dcd_edpt_xfer_new(0, ep_addr, arr, len);
         }
     }
@@ -132,17 +139,19 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
     uint8_t arr[100];
     if (~ep_addr & 0x80) {
         permit_0x81 = false;
+        count0x81 = 0;
         bugger[xferred_bytes] = ep_addr; //TODO
         debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Sent to 0x%x.\n", ep_addr);
         spi_send_blocking(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
         if (first_time) {
-            memset(arr, 0, 64);
-            arr[64] = other_edpt; // TODO
-            debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Sent to 0x%x.\n", other_edpt);
-            spi_send_blocking(arr, 64 + 1, USB_DATA);
             //first_time = false;
         }
     } else if (permit_0x81) {
+        if (xferred_bytes == 13 && count0x81 > 0) {
+            debug_print(PRINT_REASON_XFER_COMPLETE,
+                        "+++[XFER COMPLETE] EMERGENCY BAILOUT BECAUSE SCSI COMPLETED EARLY+++\n");
+            return;
+        }
         memset(arr, 0, 64);
         arr[64] = ep_addr;
         debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Sent to 0x%x.\n", ep_addr);
