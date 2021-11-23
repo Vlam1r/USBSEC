@@ -63,17 +63,13 @@ enum {
                     USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS
 };
 
-bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc);
-
-extern bool print;
-
 struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr) {
     uint8_t num = tu_edpt_number(ep_addr);
     if (num == 0) return &epx;
 
     for (uint32_t i = 1; i < TU_ARRAY_SIZE(ep_pool); i++) {
         struct hw_endpoint *ep = &ep_pool[i];
-        if (ep->configured && (ep->dev_addr == dev_addr) && (ep->ep_addr == ep_addr)) return ep;
+        if (ep->configured /*&& (ep->dev_addr == dev_addr)*/ && (ep->ep_addr == ep_addr)) return ep;
     }
 
     return NULL;
@@ -101,7 +97,6 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result) 
 static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep) {
     usb_hw_clear->buf_status = bit;
     bool done = hw_endpoint_xfer_continue(ep);
-    //if (print) spi_send_string("XFER COMPLETE ");
     if (done) {
         hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
     }
@@ -142,12 +137,8 @@ static void hw_handle_buff_status(void) {
         }
     }
 
-
-    /*uint8_t bg = usb_hw->buf_status;
-    spi_send_blocking(&bg, 1, DEBUG_PRINT_AS_HEX);*/
-
     if (remaining_buffers) {
-        spi_send_string("PANIC");
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
         panic("Unhandled buffer %d\n", remaining_buffers);
     }
 }
@@ -172,10 +163,7 @@ static void hw_trans_complete(void) {
 static void hcd_rp2040_irq_new(void) {
     uint32_t status = usb_hw->ints;
     uint32_t handled = 0;
-
-    uint8_t data[4] = {status >> 24, status >> 16, status >> 8, status};
-    //spi_send_string("Slave interrupt");
-    //spi_send_blocking(data, 4, DEBUG_PRINT_AS_HEX);
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
 
     if (status & USB_INTS_HOST_CONN_DIS_BITS) {
         handled |= USB_INTS_HOST_CONN_DIS_BITS;
@@ -193,16 +181,30 @@ static void hcd_rp2040_irq_new(void) {
     if (status & USB_INTS_BUFF_STATUS_BITS) {
         handled |= USB_INTS_BUFF_STATUS_BITS;
         TU_LOG(2, "Buffer complete\n");
-
         hw_handle_buff_status();
     }
 
     if (status & USB_INTS_TRANS_COMPLETE_BITS) {
         handled |= USB_INTS_TRANS_COMPLETE_BITS;
         usb_hw_clear->sie_status = USB_SIE_STATUS_TRANS_COMPLETE_BITS;
-
         TU_LOG(2, "Transfer complete\n");
         hw_trans_complete();
+    }
+
+    if (status & USB_INTS_EP_STALL_NAK_BITS) {
+        /*
+         * NAK maybe?
+         */
+        handled |= USB_INTS_EP_STALL_NAK_BITS;
+        usb_hw_clear->sie_status = USB_SIE_STATUS_NAK_REC_BITS;
+        gpio_init(6);
+        gpio_set_dir(6, GPIO_OUT);
+        gpio_put(6, 1);
+        gpio_init(5);
+        gpio_set_dir(5, GPIO_OUT);
+        gpio_put(5, 1);
+        panic("");
+        hw_xfer_complete(&epx, XFER_RESULT_FAILED);
     }
 
     if (status & USB_INTS_STALL_BITS) {
@@ -210,29 +212,41 @@ static void hcd_rp2040_irq_new(void) {
         pico_trace("Stall REC\n");
         handled |= USB_INTS_STALL_BITS;
         usb_hw_clear->sie_status = USB_SIE_STATUS_STALL_REC_BITS;
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        gpio_init(6);
+        gpio_set_dir(6, GPIO_OUT);
+        gpio_put(6, 1);
+        panic("");
         hw_xfer_complete(&epx, XFER_RESULT_STALLED);
     }
 
     if (status & USB_INTS_ERROR_RX_TIMEOUT_BITS) {
         handled |= USB_INTS_ERROR_RX_TIMEOUT_BITS;
-        spi_send_string("---RX TIMEOUT---");
-        panic("");
-
+        //spi_send_string("---RX TIMEOUT---");
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        gpio_init(5);
+        gpio_set_dir(5, GPIO_OUT);
+        gpio_put(5, 1);
         //usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
         //hcd_event_device_remove(0, 0);
-        usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
+        //usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
     }
 
     if (status & USB_INTS_ERROR_DATA_SEQ_BITS) {
         usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
         TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(*epx.buffer_control),
                tu_u32_high16(*epx.buffer_control));
-        spi_send_string("---DATA SEQ---");
+        //spi_send_string("---DATA SEQ---");
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        gpio_init(4);
+        gpio_set_dir(4, GPIO_OUT);
+        gpio_put(4, 1);
         panic("Data Seq Error \n");
     }
 
     if (status ^ handled) {
-        spi_send_string("---UNHANDLED---");
+        //spi_send_string("---UNHANDLED---");
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
         panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
     }
 }
@@ -367,7 +381,8 @@ bool hcd_init(uint8_t rhport) {
                    USB_INTE_STALL_BITS |
                    USB_INTE_TRANS_COMPLETE_BITS |
                    USB_INTE_ERROR_RX_TIMEOUT_BITS |
-                   USB_INTE_ERROR_DATA_SEQ_BITS;
+                   USB_INTE_ERROR_DATA_SEQ_BITS |
+                   USB_INTE_EP_STALL_NAK_BITS;
 
     return true;
 }
@@ -393,6 +408,8 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
         case 2:
             return TUSB_SPEED_FULL;
         default:
+
+            gpio_put(PICO_DEFAULT_LED_PIN, 1);
             panic("Invalid speed\n");
             return TUSB_SPEED_INVALID;
     }
@@ -455,7 +472,15 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     // Get appropriate ep. Either EPX or interrupt endpoint
 
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
     assert(ep);
+
+    /** PID HACK TODO CLEAN **/
+    /*if (ep_addr == 0x2 && active_ep && active_ep->ep_addr != 0x82) {
+        ep->next_pid = active_ep->next_pid;
+    }*/
+
+    /****/
     active_ep = ep;
 
     // Control endpoint can change direction 0x00 <-> 0x80
@@ -535,7 +560,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr) {
     (void) dev_addr;
     (void) ep_addr;
-
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
     panic("hcd_clear_stall");
     return true;
 }

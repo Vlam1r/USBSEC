@@ -189,8 +189,9 @@ static void hw_handle_buff_status(void) {
         uint bit = 1u << i;
         if (remaining_buffers & bit) {
             hw_handle_buff_status_bit(remaining_buffers, i);
+
+            remaining_buffers &= ~4u; // TODO Harden
         }
-        bit <<= 1u;
     }
 
     // EPx IN
@@ -230,6 +231,18 @@ static void dcd_rp2040_irq_new(void) {
 
     debug_print(PRINT_REASON_IRQ, "[IRQ] Master interrupt: %0#10lx\n", status);
 
+    // SE0 for 2.5 us or more (will last at least 10ms)
+    if (status & USB_INTS_BUS_RESET_BITS) {
+        pico_trace("BUS RESET\n");
+
+        handled |= USB_INTS_BUS_RESET_BITS;
+
+        usb_hw->dev_addr_ctrl = 0;
+        reset_non_control_endpoints();
+        device_event_bus_reset();
+        usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
+    }
+
     if (status & USB_INTS_SETUP_REQ_BITS) {
         handled |= USB_INTS_SETUP_REQ_BITS;
         uint8_t const *setup = (uint8_t const *) &usb_dpram->setup_packet;
@@ -265,17 +278,7 @@ static void dcd_rp2040_irq_new(void) {
     }
 #endif
 
-    // SE0 for 2.5 us or more (will last at least 10ms)
-    if (status & USB_INTS_BUS_RESET_BITS) {
-        pico_trace("BUS RESET\n");
 
-        handled |= USB_INTS_BUS_RESET_BITS;
-
-        usb_hw->dev_addr_ctrl = 0;
-        reset_non_control_endpoints();
-        device_event_bus_reset();
-        usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
-    }
 
     /* Note from pico datasheet 4.1.2.6.4 (v1.2)
      * If you enable the suspend interrupt, it is likely you will see a suspend interrupt when
@@ -395,7 +398,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
 bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
     assert(rhport == 0);
-    if (total_bytes > 0 && ep_addr & 0x80) {
+    if (ep_addr & 0x80) {
         debug_print(PRINT_REASON_USB_EXCHANGES, "Sending to host:\n");
         debug_print_array(PRINT_REASON_USB_EXCHANGES, buffer, total_bytes);
     }

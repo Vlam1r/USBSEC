@@ -290,6 +290,8 @@ static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep) {
 
     // sync buffer 1 if double buffered
     if ((*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS) {
+
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
         panic("Double buffering unsupported");
     }
 }

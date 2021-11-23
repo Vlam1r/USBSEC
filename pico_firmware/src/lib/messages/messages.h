@@ -42,6 +42,7 @@ typedef enum {
     RESET_USB = 0x4,
     EDPT_OPEN = 0x8,
     SLAVE_DATA = 0x10,
+    CHG_ADDR = 0x20,
     /**/
     DEBUG_PRINT_AS_STRING = 0x4000,
     DEBUG_PRINT_AS_HEX = 0x8000
