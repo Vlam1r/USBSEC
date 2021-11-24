@@ -10,6 +10,7 @@
 #include "pico/binary_info.h"
 #include <stdio.h>
 #include "../debug/debug.h"
+#include "../event_queue/event_queue.h"
 
 void_func_t handler = NULL;
 
@@ -192,4 +193,16 @@ uint16_t recieve_message(uint8_t *data) {
 ///
 uint16_t get_flag(void) {
     return flag;
+}
+
+void send_event_to_master(uint8_t *bugger, uint16_t len, uint8_t ep_addr, uint16_t e_flag) {
+    assert(get_role() == SPI_ROLE_SLAVE);
+    event_t e = {
+            .e_flag = e_flag,
+            .payload = bugger,
+            .payload_length = len,
+            .ep_addr = ep_addr
+    };
+    create_event(&e);
+    gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
 }

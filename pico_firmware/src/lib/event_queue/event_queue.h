@@ -15,16 +15,8 @@
 
 #define EVENT_QUEUE_MAX_CAPACITY 20
 
-typedef enum {
-    DEVICE_EVENT_SETUP_RECEIVED,
-    DEVICE_EVENT_XFER_COMPLETE,
-    DEVICE_EVENT_BUS_RESET,
-    SLAVE_SPI_WAITING_TO_SEND,
-    HOST_EVENT_XFER_COMPLETE /* Only event for slave */
-} event_type;
-
 typedef struct {
-    event_type e_type;
+    uint16_t e_flag;
     uint16_t payload_length;
     uint8_t *payload;
     /**/

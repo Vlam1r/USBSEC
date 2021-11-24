@@ -46,7 +46,7 @@ void create_event(event_t *e) {
         memcpy(events[end].payload, e->payload, events[end].payload_length);
     }
     end = next(end);
-    debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Insert %d. New range [%d-%d]\n", e->e_type, begin, end);
+    debug_print(PRINT_REASON_EVENT_QUEUE, "[EVENT_QUEUE] Insert %d. New range [%d-%d]\n", e->e_flag, begin, end);
 }
 
 void delete_event(event_t *e) {

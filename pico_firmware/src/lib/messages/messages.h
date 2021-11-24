@@ -30,10 +30,11 @@ typedef enum {
     SETUP_DATA = 0x2,
     RESET_USB = 0x4,
     EDPT_OPEN = 0x8,
-    SLAVE_DATA = 0x10,
+    SLAVE_DATA_QUERY = 0x10,
     CHG_ADDR = 0x20,
     /**/
-    LAST_PACKET = 0x1000,
+    FIRST_PACKET = 0x1000,
+    LAST_PACKET = 0x2000,
     /**/
     DEBUG_PRINT_AS_HEX = 0x8000
 } msg_type;
@@ -51,5 +52,7 @@ void send_message(const uint8_t *data, uint16_t len, uint16_t new_flag);
 uint16_t recieve_message(uint8_t *data);
 
 uint16_t get_flag(void);
+
+void send_event_to_master(uint8_t *bugger, uint16_t len, uint8_t ep_addr, uint16_t e_flag);
 
 #endif //PICO_FIRMWARE_MESSAGES_H

@@ -165,9 +165,6 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
 
         *ep->endpoint_control = ep_ctrl;
 
-        TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl),
-               tu_u32_high16(buf_ctrl));
-
 // Finally, write to buffer_control which will trigger the transfer
 // the next time the controller polls this dpram address
         hw_endpoint_buffer_control_set_value32(ep, buf_ctrl);

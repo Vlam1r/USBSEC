@@ -17,7 +17,7 @@ uint8_t other_edpt;
 static void handle_spi_slave_event(void) {
     if (handling_setup) return;
     uint8_t arr[100];
-    send_message(NULL, 0, SLAVE_DATA);
+    send_message(NULL, 0, SLAVE_DATA_QUERY);
     uint8_t count;
     assert(recieve_message(&count) == 1);
     debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Reading %d packets.\n", count);
@@ -46,7 +46,7 @@ int get_only_response(uint8_t *data) {
     while (!gpio_get(GPIO_SLAVE_IRQ_PIN)) {
         tight_loop_contents();
     }
-    send_message(NULL, 0, SLAVE_DATA);
+    send_message(NULL, 0, SLAVE_DATA_QUERY);
     uint8_t count;
     int len = recieve_message(&count);
     debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Received len %d, count %d\n", len, count);

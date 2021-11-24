@@ -58,16 +58,16 @@ void slavework() {
         //gpio_put(PICO_DEFAULT_LED_PIN, 1);
         hcd_edpt_xfer(0, dev_addr, bugger[len - 1], bugger, len - 1);
         gpio_put(PICO_DEFAULT_LED_PIN, 0);
-    } else if (get_flag() & SLAVE_DATA) {
+    } else if (get_flag() & SLAVE_DATA_QUERY) {
         /*
          * Empty data (event) queue to master
          */
         uint8_t queue_len = queue_size();
-        send_message(&queue_len, 1, SLAVE_DATA);
+        send_message(&queue_len, 1, SLAVE_DATA_QUERY);
         while (queue_size() > 0) {
             event_t *e = get_from_event_queue();
             e->payload[e->payload_length] = e->ep_addr;
-            send_message(e->payload, e->payload_length + 1, SLAVE_DATA);
+            send_message(e->payload, e->payload_length + 1, SLAVE_DATA_QUERY);
             delete_event(e);
         }
         gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
@@ -104,8 +104,6 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
         level = 1;
         if (setup_packet.bmRequestType_bit.direction == 0) {
             // Data transport not supported
-            //gpio_put(PICO_DEFAULT_LED_PIN, 1);
-            //hcd_edpt_xfer(0, dev_addr_curr, 0x00, NULL, 0);
             hcd_edpt_xfer(0, dev_addr_curr, 0x80, bugger, 64);
         } else {
             hcd_edpt_xfer(0, dev_addr_curr, 0x80, bugger, setup_packet.wLength);
@@ -115,39 +113,18 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
         level = 2;
         outlen = xferred_bytes;
         if (setup_packet.bmRequestType_bit.direction == 0) {
-            event_t e = {
-                    .e_type = HOST_EVENT_XFER_COMPLETE,
-                    .payload = NULL,
-                    .payload_length = 0,
-                    .ep_addr = ep_addr
-            };
-            create_event(&e);
-            gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
-            //hcd_edpt_xfer(0, dev_addr_curr, 0x80, NULL, 0); // Request ACK
+            send_event_to_master(NULL, 0, ep_addr, FIRST_PACKET | LAST_PACKET);
         } else {
             hcd_edpt_xfer(0, dev_addr_curr, 0x00, NULL, 0); // Request ACK
         }
     } else if (level == 2) {
         // Ack sent
-        event_t e = {
-                .e_type = HOST_EVENT_XFER_COMPLETE,
-                .payload = bugger,
-                .payload_length = outlen,
-                .ep_addr = ep_addr
-        };
-        create_event(&e);
-        gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
+        send_event_to_master(NULL, 0, ep_addr, FIRST_PACKET | LAST_PACKET);
     } else {
         /*
          * Non-control transfer
          */
-        event_t e = {
-                .e_type = HOST_EVENT_XFER_COMPLETE,
-                .payload = bugger,
-                .payload_length = xferred_bytes,
-                .ep_addr = ep_addr
-        };
-        create_event(&e);
-        gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
+        send_event_to_master(bugger, xferred_bytes, ep_addr, FIRST_PACKET | LAST_PACKET);
+        //Problematic as xferred bytes is unbounded here.
     }
 }
