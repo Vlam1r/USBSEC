@@ -206,7 +206,6 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     // the trans complete irq but also stop it polling. We only really care about
     // trans complete for setup packets being sent
     if (true) { // todo!
-        pico_trace("Last buf (%d bytes left)\n", ep->transfer_size);
         val |= USB_BUF_CTRL_LAST;
     }
 
