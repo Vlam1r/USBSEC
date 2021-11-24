@@ -35,6 +35,7 @@ static void gpio_irq(uint pin, uint32_t event) {
             if (handler != NULL) {
                 handler();
             }
+            break;
         default:
             panic("Invalid GPIO Interrupt event.");
     }
