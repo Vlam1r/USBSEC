@@ -11,7 +11,7 @@
 #include "tusb_common.h"
 #include "tusb_types.h"
 #include <hardware/structs/usb.h>
-#include "../event_queue/event_queue.h"
+#include "../queueing/event_queue.h"
 #include "../edpt_registry/edpt_registry.h"
 #include "../debug/debug.h"
 

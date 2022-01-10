@@ -10,7 +10,7 @@
 #include "pico/binary_info.h"
 #include <stdio.h>
 #include "../debug/debug.h"
-#include "../event_queue/event_queue.h"
+#include "../queueing/event_queue.h"
 
 void_func_t handler = NULL;
 

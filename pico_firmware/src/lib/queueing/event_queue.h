@@ -8,6 +8,7 @@
 #define PICO_FIRMWARE_EVENT_QUEUE_H
 
 #include "pico/stdlib.h"
+#include "queue.h"
 #include <string.h>
 #include <malloc.h>
 #include <pico/printf.h>
