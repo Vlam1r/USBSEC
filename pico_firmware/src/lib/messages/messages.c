@@ -137,7 +137,7 @@ void send_message(const uint8_t *data, uint16_t len, uint16_t new_flag) {
     //
     if (get_role() == SPI_ROLE_MASTER) {
         gpio_put(GPIO_SLAVE_RECEIVE_PIN, 1);
-        debug_print(PRINT_REASON_SPI_MESSAGES, "[SPI] Waiting for slave to get ready.\n");
+        //debug_print(PRINT_REASON_SPI_MESSAGES, "[SPI] Waiting for slave to get ready.\n");
         while (!gpio_get(GPIO_SLAVE_WAITING_PIN))
             tight_loop_contents();
         gpio_put(GPIO_SLAVE_RECEIVE_PIN, 0);
@@ -168,9 +168,16 @@ void send_message(const uint8_t *data, uint16_t len, uint16_t new_flag) {
 ///
 uint16_t recieve_message(uint8_t *data) {
 
+    if (get_role() == SPI_ROLE_SLAVE) {
+        gpio_put(GPIO_SLAVE_WAITING_PIN, 1);
+    }
     // Call role agnostic spi transmission
     //
     int len = spi_receive_blocking(data);
+
+    if (get_role() == SPI_ROLE_SLAVE) {
+        gpio_put(GPIO_SLAVE_WAITING_PIN, 0);
+    }
 
     // Debug printing
     //

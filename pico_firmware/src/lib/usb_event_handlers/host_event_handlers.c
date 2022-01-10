@@ -25,10 +25,8 @@ bool print = false;
 int curredpt = -1;
 
 void slavework() {
-    gpio_put(GPIO_LED_PIN, 1);
-    gpio_put(GPIO_SLAVE_WAITING_PIN, 1);
+    
     int len = recieve_message(bugger);
-    gpio_put(GPIO_SLAVE_WAITING_PIN, 0);
 
     if (get_flag() & RESET_USB) {
         /*
@@ -98,7 +96,7 @@ void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
 }
 
 void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
-    assert(result == 0);
+    assert(result == 0 || result == 4);
     if (level == 0) {
         // Setup packet response. Send IN or OUT token packet
         level = 1;
@@ -119,12 +117,15 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
         }
     } else if (level == 2) {
         // Ack sent
-        send_event_to_master(NULL, 0, ep_addr, FIRST_PACKET | LAST_PACKET);
+        send_event_to_master(bugger, outlen, ep_addr, FIRST_PACKET | LAST_PACKET);
     } else {
         /*
          * Non-control transfer
          */
-        send_event_to_master(bugger, xferred_bytes, ep_addr, FIRST_PACKET | LAST_PACKET);
+        uint16_t new_flag = 0;
+        if (result == 0) new_flag |= LAST_PACKET;
+        if (result == 4) new_flag |= FIRST_PACKET;
+        send_event_to_master(bugger, xferred_bytes, ep_addr, new_flag);
         //Problematic as xferred bytes is unbounded here.
     }
 }

@@ -406,6 +406,11 @@ bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
     return true;
 }
 
+void dcd_edpt_xfer_partial(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, uint16_t flag) {
+    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
+    hw_endpoint_xfer_partial(ep, buffer, total_bytes, flag);
+}
+
 void dcd_edpt_stall_new(uint8_t rhport, uint8_t ep_addr) {
     (void) rhport;
 

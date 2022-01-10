@@ -26,6 +26,9 @@ static void handle_spi_slave_event(void) {
         uint8_t ep_addr = arr[--len];
         debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Packet for 0x%x\n", ep_addr);
         if (~ep_addr & 0x80) {
+            /*
+             * OUT endpoint
+             */
             memset(arr, 0, 64);
             arr[64] = other_edpt; // TODO
             debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Sent to 0x%x.\n", other_edpt);
@@ -34,9 +37,13 @@ static void handle_spi_slave_event(void) {
             dcd_edpt_xfer_new(0, ep_addr, bugger, 64);
             debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Listening to port 0x%x\n", ep_addr);
         } else {
+            /*
+             * IN endpoint
+             */
             permit_0x81 = true;
             count0x81++;
-            dcd_edpt_xfer_new(0, ep_addr, arr, len);
+            printf("+++++ STARTING PARTIAL XFER ON %d++++\n", ep_addr);
+            dcd_edpt_xfer_partial(ep_addr, arr, len, get_flag());
         }
     }
     debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Done.\n");

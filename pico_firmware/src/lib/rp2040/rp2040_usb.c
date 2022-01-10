@@ -64,6 +64,7 @@ void hw_endpoint_reset_transfer_new(struct hw_endpoint *ep) {
     ep->remaining_len = 0;
     ep->xferred_len = 0;
     ep->user_buf = 0;
+    ep->partial = false;
 }
 
 void hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
@@ -175,9 +176,12 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     // Prepare buffer control register value
     uint32_t val = ep->remaining_len | USB_BUF_CTRL_AVAIL;
 
+    uint16_t const buflen = tu_min16(ep->remaining_len, 64);
+    ep->remaining_len -= buflen;
+
     if (!ep->rx) {
         // Copy data from user buffer to hw buffer
-        memcpy(ep->hw_data_buf, &ep->user_buf[ep->xferred_len], ep->remaining_len);
+        memcpy(ep->hw_data_buf, &ep->user_buf[ep->xferred_len], buflen);
         // Mark as full
         val |= USB_BUF_CTRL_FULL;
     }
@@ -188,11 +192,11 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     // For Host (also device but since we dictate the endpoint size, following scenario does not occur)
     // Next PID depends on the number of packet in case wMaxPacketSize < 64 (e.g Interrupt Endpoint 8, or 12)
     // Special case with control status stage where PID is always DATA1
-    if (ep->remaining_len == 0) {
+    if (buflen == 0) {
         // ZLP also toggle data
         ep->next_pid ^= 1u;
     } else {
-        uint32_t packet_count = 1 + ((ep->remaining_len - 1) / ep->wMaxPacketSize);
+        uint32_t packet_count = 1 + ((ep->remaining_len + buflen - 1) / ep->wMaxPacketSize);
 
         if (packet_count & 0x01) {
             ep->next_pid ^= 1u;
@@ -230,10 +234,55 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
     ep->xferred_len = 0;
     ep->active = true;
     ep->user_buf = buffer;
-
+    ep->partial = false;
 
     _hw_endpoint_start_next_buffer(ep);
     _hw_endpoint_lock_update(ep, -1);
+}
+
+void hw_endpoint_xfer_partial(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len, uint16_t flag) {
+
+    // Fill in info now that we're kicking off the hw
+    ep->remaining_len = total_len;
+    ep->xferred_len = 0;
+    ep->active = true;
+    ep->user_buf = buffer;
+    ep->partial = true;
+
+    uint32_t ep_ctrl = *ep->endpoint_control;
+
+// always compute and start with buffer 0
+    uint32_t buf_ctrl = prepare_ep_buffer(ep, 0) | USB_BUF_CTRL_SEL;
+
+    bool const force_single =
+            !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
+
+    if (ep->remaining_len && !force_single) {
+        panic("");
+        buf_ctrl |= prepare_ep_buffer(ep, 1);
+
+// Set endpoint control double buffered bit if needed
+        ep_ctrl &= ~EP_CTRL_INTERRUPT_PER_BUFFER;
+        ep_ctrl |= EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER;
+    } else {
+// Single buffered since 1 is enough
+        ep_ctrl &= ~(EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER);
+        ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
+    }
+
+    *ep->endpoint_control = ep_ctrl;
+
+    buf_ctrl &= ~USB_BUF_CTRL_LAST;
+    if (total_len < 64) {
+        printf("+++++ LAST BUGGER+++++\n");
+        buf_ctrl |= USB_BUF_CTRL_LAST;
+    }
+    ep->partial = false;
+
+// Finally, write to buffer_control which will trigger the transfer
+// the next time the controller polls this dpram address
+    hw_endpoint_buffer_control_set_value32(ep, buf_ctrl);
+
 }
 
 // sync endpoint buffer and return transferred bytes
@@ -261,15 +310,21 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
         debug_print(PRINT_REASON_DCD_BUFFER, "Received %d bytes on [0x%x]\n", xferred_bytes, ep->ep_addr);
         //spi_send_blocking(ep->user_buf, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
         ep->xferred_len += xferred_bytes;
-        ep->user_buf += xferred_bytes;
+        if (get_role() == SPI_ROLE_MASTER)
+            ep->user_buf += xferred_bytes; //We can cpy in place on slave as we will always send to host
     }
 
+    uint16_t lp = 0;
     // Short packet
     if (xferred_bytes < 64) {
         pico_trace("  Short packet on buffer %d with %u bytes\n", buf_id, xferred_bytes);
         // Reduce total length as this is last packet
         ep->remaining_len = 0;
+        lp = LAST_PACKET;
     }
+
+    //if (get_role() == SPI_ROLE_SLAVE)
+    //    send_event_to_master(ep->user_buf, xferred_bytes, ep->ep_addr, FIRST_PACKET | lp);
 
     return xferred_bytes;
 }
@@ -278,11 +333,8 @@ static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep) {
     // Update hw endpoint struct with info from hardware
     // after a buff status interrupt
 
-    uint32_t buf_ctrl = hw_endpoint_buffer_control_get_value32(ep);
-    TU_LOG(3, "  Sync BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
-
     // always sync buffer 0
-    uint16_t buf0_bytes = sync_ep_buffer(ep, 0);
+    sync_ep_buffer(ep, 0);
 
     // sync buffer 1 if double buffered
     if ((*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS) {
@@ -295,6 +347,8 @@ static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep) {
 // Returns true if transfer is complete
 bool hw_endpoint_xfer_continue(struct hw_endpoint *ep) {
     _hw_endpoint_lock_update(ep, 1);
+
+    if (ep->partial) return false;
     // Part way through a transfer
     /*if (!ep->active) TODO IS THIS OK?
     {

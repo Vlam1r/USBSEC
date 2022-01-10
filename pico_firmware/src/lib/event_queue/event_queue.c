@@ -35,7 +35,9 @@ event_t *get_from_event_queue(void) {
 }
 
 void create_event(event_t *e) {
-    if (full()) panic("EVENT QUEUE FULL!!!");
+    while (full()) {
+        tight_loop_contents();
+    }
 
     memcpy(&events[end], e, sizeof(event_t));
     if (events[end].payload_length != 0) {

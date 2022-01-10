@@ -22,9 +22,10 @@ int main() {
     // Debug printing
     //
     set_print_flag(PRINT_REASON_PREAMBLE);
+    set_print_flag(PRINT_REASON_DCD_BUFFER);
+
     set_print_flag(PRINT_REASON_IRQ);
     set_print_flag(PRINT_REASON_USB_EXCHANGES);
-    set_print_flag(PRINT_REASON_DCD_BUFFER);
     set_print_flag(PRINT_REASON_SPI_MESSAGES);
     set_print_flag(PRINT_REASON_XFER_COMPLETE);
     set_print_flag(PRINT_REASON_SETUP_REACTION);

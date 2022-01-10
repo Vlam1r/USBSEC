@@ -82,7 +82,7 @@ static inline uint8_t dev_speed(void) {
 static bool need_pre(uint8_t dev_addr) {
     // If this device is different to the speed of the root device
     // (i.e. is a low speed device on a full speed hub) then need pre
-    return false;
+    return dev_speed() == 1;
 }
 
 static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result) {
@@ -90,16 +90,15 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result) 
     uint8_t dev_addr = ep->dev_addr;
     uint8_t ep_addr = ep->ep_addr;
     uint xferred_len = ep->xferred_len;
-    hw_endpoint_reset_transfer_new(ep);
+    if (xfer_result != 4)
+        hw_endpoint_reset_transfer_new(ep);
     hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
 
 static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep) {
     usb_hw_clear->buf_status = bit;
     bool done = hw_endpoint_xfer_continue(ep);
-    if (done) {
-        hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
-    }
+    hw_xfer_complete(ep, done ? XFER_RESULT_SUCCESS : 4);
 }
 
 static void hw_handle_buff_status(void) {

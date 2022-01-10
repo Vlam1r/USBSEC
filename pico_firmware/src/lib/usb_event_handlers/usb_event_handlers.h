@@ -54,6 +54,9 @@ typedef struct hw_endpoint {
 
     // If interrupt endpoint
     uint8_t interrupt_num;
+
+    // Partial transfer
+    bool partial;
 } hw_endpoint_t;
 
 typedef enum {
@@ -122,5 +125,6 @@ void masterwork(void);
 
 void spi_handler_init(void);
 
+void dcd_edpt_xfer_partial(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, uint16_t flag);
 
 #endif //PICO_FIRMWARE_USB_EVENT_HANDLERS_H

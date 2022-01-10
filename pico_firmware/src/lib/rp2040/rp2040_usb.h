@@ -55,6 +55,8 @@
     uint8_t interrupt_num;
 } hw_endpoint_t;*/
 
+void hw_endpoint_xfer_partial(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len, uint16_t flag);
+
 void rp2040_usb_init(void);
 
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len);
