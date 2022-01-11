@@ -10,29 +10,37 @@ bool permit_0x81 = false;
 int count0x81 = 0;
 uint8_t other_edpt;
 
+tusb_control_request_t *req;
+
 /*
  * Device Events
  */
 
-static void handle_spi_slave_event(void) {
+static void handle_setup_response(spi_message_t *msg);
+
+void handle_spi_slave_event(void) {
     if (handling_setup) return;
-    uint8_t arr[100];
-    send_message(NULL, 0, SLAVE_DATA_QUERY);
-    uint8_t count;
-    assert(recieve_message(&count) == 1);
-    debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Reading %d packets.\n", count);
-    while (count--) {
-        int len = recieve_message(arr);
-        uint8_t ep_addr = arr[--len];
+
+    spi_message_t msg;
+    while (dequeue_spi_message(&msg)) {
+        assert(msg.e_flag & IS_PACKET);
+        uint8_t ep_addr = msg.payload[msg.payload_length--];
         debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Packet for 0x%x\n", ep_addr);
-        if (~ep_addr & 0x80) {
+        if (msg.e_flag & SETUP_DATA) {
+            handle_setup_response(&msg);
+        } else if (~ep_addr & 0x80) {
             /*
              * OUT endpoint
              */
-            memset(arr, 0, 64);
-            arr[64] = other_edpt; // TODO
+            memset(bugger, 0, 64);
+            bugger[64] = other_edpt; // TODO
             debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Sent to 0x%x.\n", other_edpt);
-            send_message(arr, 64 + 1, USB_DATA);
+            spi_message_t reply = {
+                    .payload = bugger,
+                    .payload_length = 64 + 1,
+                    .e_flag = USB_DATA
+            };
+            enqueue_spi_message(&reply); // TODO Optimize sending of 64 bits
 
             dcd_edpt_xfer_new(0, ep_addr, bugger, 64);
             debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Listening to port 0x%x\n", ep_addr);
@@ -43,29 +51,16 @@ static void handle_spi_slave_event(void) {
             permit_0x81 = true;
             count0x81++;
             printf("+++++ STARTING PARTIAL XFER ON %d++++\n", ep_addr);
-            dcd_edpt_xfer_partial(ep_addr, arr, len, get_flag());
+            dcd_edpt_xfer_partial(ep_addr, msg.payload, msg.payload_length, msg.e_flag);
         }
     }
-    debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Done.\n");
-}
-
-int get_only_response(uint8_t *data) {
-    while (!gpio_get(GPIO_SLAVE_IRQ_PIN)) {
-        tight_loop_contents();
-    }
-    send_message(NULL, 0, SLAVE_DATA_QUERY);
-    uint8_t count;
-    int len = recieve_message(&count);
-    debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Received len %d, count %d\n", len, count);
-    assert(len == 1);
-    assert(count == 1);
-    return recieve_message(data);
+    //debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Done.\n");
 }
 
 void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_isr) {
     //debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Setup handling started.\n");
     while (!gpio_get(GPIO_SLAVE_DEVICE_ATTACHED_PIN)) tight_loop_contents();
-    tusb_control_request_t *const req = (tusb_control_request_t *) setup;
+    req = (tusb_control_request_t *) setup;
     set_spi_pin_handler(handle_spi_slave_event);
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Received new setup.\n");
     if (req->bRequest == 0x5 /*SET ADDRESS*/) {
@@ -73,9 +68,14 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
          * If request is SET_ADDRESS we have to also change the address on slave.
          * Some devices will break if they don't get their address changed!
          */
-        send_message(NULL, 0, CHG_ADDR);
+        spi_message_t msg = {
+                .payload_length = 0,
+                .payload = NULL,
+                .e_flag = CHG_ADDR
+        };
+        enqueue_spi_message(&msg);
         uint8_t arr[10];
-        get_only_response(arr);
+        //get_only_response(arr); TODO investigate
         dcd_edpt_xfer_new(0, 0x80, NULL, 0); // ACK
         return;
     }
@@ -83,15 +83,21 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
     /*
      * Forward setup packet to slave and get response from device
      */
-    send_message(setup, 8, SETUP_DATA | DEBUG_PRINT_AS_HEX);
+    spi_message_t msg = {
+            .payload_length = sizeof(setup),
+            .payload = setup,
+            .e_flag = SETUP_DATA | DEBUG_PRINT_AS_HEX
+    };
+    enqueue_spi_message(&msg);
+}
 
-    uint8_t arr[100];
-    int len = get_only_response(arr) - 1;
-
+static void handle_setup_response(spi_message_t *msg) {
+    uint8_t *arr = msg->payload;
+    uint16_t len = msg->payload_length - 1;
     /*
      * Hooks
      */
-    if (setup[3] == 0x2 && setup[6] > 9) { // TODO Harden
+    if (((uint8_t *) req)[3] == 0x2 && ((uint8_t *) req)[6] > 9) { // TODO Harden
         /*
          * Endpoints
          */
@@ -107,7 +113,13 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
                     dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64); // Query OUT edpt
                 else
                     other_edpt = edpt->bEndpointAddress;
-                send_message((const uint8_t *) edpt, edpt->bLength, EDPT_OPEN); // TODO ONLY IF INTERRUPT?
+
+                spi_message_t reply = {
+                        .payload = edpt,
+                        .payload_length = edpt->bLength,
+                        .e_flag = EDPT_OPEN
+                };
+                enqueue_spi_message(&reply); // TODO ONLY IF INTERRUPT?
                 insert_into_registry(edpt);
             }
             pos += arr[pos];
@@ -147,7 +159,12 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
         count0x81 = 0;
         bugger[xferred_bytes] = ep_addr; //TODO
         debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Sent to 0x%x.\n", ep_addr);
-        send_message(bugger, xferred_bytes + 1, USB_DATA | DEBUG_PRINT_AS_HEX);
+        spi_message_t msg = {
+                .payload_length = xferred_bytes + 1,
+                .payload = bugger,
+                .e_flag = USB_DATA | DEBUG_PRINT_AS_HEX
+        };
+        enqueue_spi_message(&msg);
     } else if (permit_0x81) {
         if (xferred_bytes == 13 && count0x81 > 0) {
             debug_print(PRINT_REASON_XFER_COMPLETE,
@@ -157,7 +174,12 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
         memset(arr, 0, 64);
         arr[64] = ep_addr;
         debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Sent to 0x%x.\n", ep_addr);
-        send_message(arr, 64 + 1, USB_DATA);
+        spi_message_t msg = {
+                .payload_length = 64 + 1,
+                .payload = arr,
+                .e_flag = USB_DATA
+        };
+        enqueue_spi_message(&msg);
     }
     debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Leaving.\n");
 }
@@ -165,5 +187,10 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
 void device_event_bus_reset() {
     printf("Resetting\n");
     while (!gpio_get(GPIO_SLAVE_DEVICE_ATTACHED_PIN)) tight_loop_contents();
-    send_message(NULL, 0, RESET_USB);
+    spi_message_t msg = {
+            .payload = NULL,
+            .payload_length = 0,
+            .e_flag = RESET_USB
+    };
+    enqueue_spi_message(&msg);
 }

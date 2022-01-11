@@ -92,4 +92,8 @@ extern const char *ep_dir_string[];
 
 struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr);
 
+void dcd_rp2040_irq_new(void);
+
+void hcd_rp2040_irq_new(void);
+
 #endif

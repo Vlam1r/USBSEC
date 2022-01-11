@@ -225,7 +225,7 @@ static void reset_non_control_endpoints(void) {
     next_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
-static void dcd_rp2040_irq_new(void) {
+void dcd_rp2040_irq_new(void) {
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
 
@@ -333,7 +333,7 @@ void dcd_init_new(uint8_t rhport) {
     usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 #endif
 
-    irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq_new);
+    //irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq_new);
 
     // Init control endpoints
     tu_memclr(hw_endpoints[0], 2 * sizeof(hw_endpoint_t));

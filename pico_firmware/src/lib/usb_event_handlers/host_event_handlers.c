@@ -25,51 +25,39 @@ bool print = false;
 int curredpt = -1;
 
 void slavework() {
-    
-    int len = recieve_message(bugger);
 
-    if (get_flag() & RESET_USB) {
+    spi_message_t message;
+    dequeue_spi_message(&message);
+
+    if (message.e_flag & RESET_USB) {
         /*
          * Reset USB device
          */
         gpio_put(GPIO_LED_PIN, 0);
         dev_addr = 0; // TODO is this needed?
         usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
-    } else if (get_flag() & EDPT_OPEN) {
+    } else if (message.e_flag & EDPT_OPEN) {
         /*
          * Open sent endpoint
          */
-        memcpy(&registry[reg_count++], bugger, len);
+        memcpy(&registry[reg_count++], bugger, message.payload_length);
         hcd_edpt_open(bugger);
-    } else if (get_flag() & SETUP_DATA) {
+    } else if (message.e_flag & SETUP_DATA) {
         /*
          * Data is copied into setup
          */
         define_setup_packet(bugger);
         level = 0;
         hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
-    } else if (get_flag() & USB_DATA) {
+    } else if (message.e_flag & USB_DATA) {
         /*
          * Data is copied into buffer
          */
         level = 3;
         //gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        hcd_edpt_xfer(0, dev_addr, bugger[len - 1], bugger, len - 1);
+        hcd_edpt_xfer(0, dev_addr, bugger[message.payload_length - 1], bugger, message.payload_length - 1);
         gpio_put(PICO_DEFAULT_LED_PIN, 0);
-    } else if (get_flag() & SLAVE_DATA_QUERY) {
-        /*
-         * Empty data (event) queue to master
-         */
-        uint8_t queue_len = queue_size();
-        send_message(&queue_len, 1, SLAVE_DATA_QUERY);
-        while (queue_size() > 0) {
-            event_t *e = get_from_event_queue();
-            e->payload[e->payload_length] = e->ep_addr;
-            send_message(e->payload, e->payload_length + 1, SLAVE_DATA_QUERY);
-            delete_event(e);
-        }
-        gpio_put(GPIO_SLAVE_IRQ_PIN, 0);
-    } else if (get_flag() & CHG_ADDR) {
+    } else if (message.e_flag & CHG_ADDR) {
         tusb_control_request_t req = {
                 .bmRequestType = 0,
                 .wValue = 7,
@@ -95,6 +83,25 @@ void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
     gpio_put(GPIO_SLAVE_DEVICE_ATTACHED_PIN, 0);
 }
 
+static void send_event_to_master(uint16_t len, uint8_t ep_addr, uint16_t flag) {
+    if (len == 0) {
+        spi_message_t msg = {
+                .payload_length = 1,
+                .payload = &ep_addr,
+                .e_flag = IS_PACKET | flag
+        };
+        enqueue_spi_message(&msg);
+    } else {
+        bugger[len] = ep_addr;
+        spi_message_t msg = {
+                .payload_length = len + 1,
+                .payload = bugger,
+                .e_flag = IS_PACKET | flag
+        };
+        enqueue_spi_message(&msg);
+    }
+}
+
 void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
     assert(result == 0 || result == 4);
     if (level == 0) {
@@ -111,13 +118,14 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
         level = 2;
         outlen = xferred_bytes;
         if (setup_packet.bmRequestType_bit.direction == 0) {
-            send_event_to_master(NULL, 0, ep_addr, FIRST_PACKET | LAST_PACKET);
+
+            send_event_to_master(0, ep_addr, FIRST_PACKET | LAST_PACKET | SETUP_DATA);
         } else {
             hcd_edpt_xfer(0, dev_addr_curr, 0x00, NULL, 0); // Request ACK
         }
     } else if (level == 2) {
         // Ack sent
-        send_event_to_master(bugger, outlen, ep_addr, FIRST_PACKET | LAST_PACKET);
+        send_event_to_master(outlen, ep_addr, FIRST_PACKET | LAST_PACKET | SETUP_DATA);
     } else {
         /*
          * Non-control transfer
@@ -125,7 +133,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
         uint16_t new_flag = 0;
         if (result == 0) new_flag |= LAST_PACKET;
         if (result == 4) new_flag |= FIRST_PACKET;
-        send_event_to_master(bugger, xferred_bytes, ep_addr, new_flag);
+        send_event_to_master(xferred_bytes, ep_addr, new_flag);
         //Problematic as xferred bytes is unbounded here.
     }
 }

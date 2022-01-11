@@ -1,45 +1,16 @@
-#include <sys/cdefs.h>
 //
 // Created by vlamir on 11/2/21.
 //
 
 #include "messages.h"
-#include "spi_data.h"
-
-#include "hardware/spi.h"
-#include "pico/binary_info.h"
-#include <stdio.h>
-#include "../debug/debug.h"
-#include "../queueing/event_queue.h"
 
 void_func_t handler = NULL;
 
+queue_t tx, rx;
+uint8_t bugger[1025];
+
 void set_spi_pin_handler(void_func_t fun) {
     handler = fun;
-}
-
-/// Processes the GPIO interrupt
-/// \param pin Pin which triggered interrupt event
-/// \param event Event type
-static void gpio_irq(uint pin, uint32_t event) {
-    switch (pin) {
-        case GPIO_SLAVE_IRQ_PIN:
-            assert(event == GPIO_IRQ_EDGE_RISE);
-            assert (get_role() == SPI_ROLE_MASTER);
-            if (handler != NULL) {
-                handler();
-            }
-            break;
-        case GPIO_SLAVE_RECEIVE_PIN:
-            assert(event == GPIO_IRQ_EDGE_RISE);
-            assert (get_role() == SPI_ROLE_SLAVE);
-            if (handler != NULL) {
-                handler();
-            }
-            break;
-        default:
-            panic("Invalid GPIO Interrupt event.");
-    }
 }
 
 /// Prepare a GPIO pint to be used as IO between microcontrollers
@@ -60,30 +31,16 @@ void messages_config(void) {
 
     // Setup debug IO over UART
     //
-#ifdef __IS_MASTER__
-    stdio_uart_init();
-    assert(get_role() == SPI_ROLE_MASTER);
-#endif
-
-    // Setup master select
-    //
-    //gpio_init(GPIO_MASTER_SELECT_PIN);
-    //gpio_set_dir(GPIO_MASTER_SELECT_PIN, GPIO_IN);
+    if (get_role() == SPI_ROLE_MASTER) {
+        stdio_uart_init();
+    }
 
     // Setup IO pins
     //
-    init_gpio_pin(GPIO_SLAVE_IRQ_PIN, SPI_ROLE_MASTER);
+    init_gpio_pin(GPIO_SYNCING, SPI_ROLE_MASTER);
     init_gpio_pin(GPIO_SLAVE_WAITING_PIN, SPI_ROLE_MASTER);
     init_gpio_pin(GPIO_SLAVE_DEVICE_ATTACHED_PIN, SPI_ROLE_MASTER);
     init_gpio_pin(GPIO_SLAVE_RECEIVE_PIN, SPI_ROLE_SLAVE);
-
-    // Setup GPIO events
-    //
-    if (get_role() == SPI_ROLE_MASTER) {
-        gpio_set_irq_enabled_with_callback(GPIO_SLAVE_IRQ_PIN, GPIO_IRQ_EDGE_RISE, true, gpio_irq);
-    } else {
-        gpio_set_irq_enabled_with_callback(GPIO_SLAVE_RECEIVE_PIN, GPIO_IRQ_EDGE_RISE, true, gpio_irq);
-    }
 
     // Setup SPI and its pins
     //
@@ -105,21 +62,19 @@ void messages_config(void) {
     } else {
         debug_print(PRINT_REASON_PREAMBLE, "\n-------\n SLAVE \n-------\n");
     }
+
+    // Init spi queues
+    //
+    queue_init(&tx, sizeof(spi_message_t), SPI_QUEUE_MAX_CAPACITY);
+    queue_init(&rx, sizeof(spi_message_t), SPI_QUEUE_MAX_CAPACITY);
 }
 
-/// Checks whether microcontroller is master or slave
-///
-/// \return Spi role of the current microcontroller
-///
-spi_role get_role(void) {
-    //return gpio_get(GPIO_MASTER_SELECT_PIN) ? SPI_ROLE_MASTER : SPI_ROLE_SLAVE;
-#ifdef __IS_MASTER__
-    assert(gpio_get(GPIO_MASTER_SELECT_PIN));
-    return SPI_ROLE_MASTER;
-#else
-    assert(!gpio_get(GPIO_MASTER_SELECT_PIN));
-    return SPI_ROLE_SLAVE;
-#endif
+static void queue_add_with_copy(queue_t *q, spi_message_t *message) {
+    uint8_t *payload_copy = malloc(message->payload_length);
+    assert(payload_copy != NULL);
+    memcpy(payload_copy, message->payload, message->payload_length);
+    message->payload = payload_copy;
+    queue_add_blocking(q, message);
 }
 
 /// Send a message to other microcontroller.
@@ -127,7 +82,7 @@ spi_role get_role(void) {
 /// \param len Amount of data to be sent
 /// \param new_flag New flag on both microcontrollers
 ///
-void send_message(const uint8_t *data, uint16_t len, uint16_t new_flag) {
+static void send_message(const uint8_t *data, uint16_t len, uint16_t new_flag) {
 
     // On master we have to prepare slave for data reception before sending
     // Master sets GPIO_SLAVE_RECEIVE_PIN high
@@ -136,11 +91,9 @@ void send_message(const uint8_t *data, uint16_t len, uint16_t new_flag) {
     // On slave this isn't necessary as slave can't send over SPI if master doesn't read
     //
     if (get_role() == SPI_ROLE_MASTER) {
-        gpio_put(GPIO_SLAVE_RECEIVE_PIN, 1);
         //debug_print(PRINT_REASON_SPI_MESSAGES, "[SPI] Waiting for slave to get ready.\n");
         while (!gpio_get(GPIO_SLAVE_WAITING_PIN))
             tight_loop_contents();
-        gpio_put(GPIO_SLAVE_RECEIVE_PIN, 0);
     }
 
     // Call role agnostic spi transmission
@@ -166,7 +119,7 @@ void send_message(const uint8_t *data, uint16_t len, uint16_t new_flag) {
 /// \param data Data buffer to write message in
 /// \return Length of transmission
 ///
-uint16_t recieve_message(uint8_t *data) {
+static uint16_t recieve_message(uint8_t *data) {
 
     if (get_role() == SPI_ROLE_SLAVE) {
         gpio_put(GPIO_SLAVE_WAITING_PIN, 1);
@@ -195,21 +148,47 @@ uint16_t recieve_message(uint8_t *data) {
     return len;
 }
 
-/// Retreive current flag.
-/// \returns Message state shared between microcontrollers.
-///
-uint16_t get_flag(void) {
-    return flag;
+void enqueue_spi_message(spi_message_t *message) {
+    queue_add_with_copy(&tx, message);
 }
 
-void send_event_to_master(uint8_t *bugger, uint16_t len, uint8_t ep_addr, uint16_t e_flag) {
-    assert(get_role() == SPI_ROLE_SLAVE);
-    event_t e = {
-            .e_flag = e_flag,
-            .payload = bugger,
-            .payload_length = len,
-            .ep_addr = ep_addr
-    };
-    create_event(&e);
-    gpio_put(GPIO_SLAVE_IRQ_PIN, 1);
+bool dequeue_spi_message(spi_message_t *message) {
+    return queue_try_remove(&rx, message);
+}
+
+void sync(void) {
+    spi_message_t msg;
+    if (get_role() == SPI_ROLE_MASTER) {
+        while (!queue_is_empty(&tx)) {
+            queue_remove_blocking(&tx, &msg);
+            send_message(msg.payload, msg.payload_length, msg.e_flag);
+        }
+        send_message(NULL, 0, SLAVE_DATA_QUERY);
+        assert(recieve_message(bugger) == 1);
+        int rec_count = bugger[0];
+        while (rec_count--) {
+            msg.payload = bugger;
+            msg.payload_length = recieve_message(bugger);
+            msg.e_flag = flag;
+            queue_add_with_copy(&rx, &msg);
+        }
+
+    } else {
+        while (!gpio_get(GPIO_SYNCING)) {
+            tight_loop_contents();
+        }
+        while (true) {
+            msg.payload = bugger;
+            msg.payload_length = recieve_message(bugger);
+            msg.e_flag = flag;
+            if (flag & SLAVE_DATA_QUERY) break;
+            queue_add_with_copy(&rx, &msg);
+        }
+        bugger[0] = queue_get_level(&tx);
+        send_message(bugger, 1, 0);
+        while (!queue_is_empty(&tx)) {
+            queue_remove_blocking(&tx, &msg);
+            spi_send_blocking(msg.payload, msg.payload_length, msg.e_flag);
+        }
+    }
 }

@@ -11,7 +11,6 @@
 #include "tusb_common.h"
 #include "tusb_types.h"
 #include <hardware/structs/usb.h>
-#include "../queueing/event_queue.h"
 #include "../edpt_registry/edpt_registry.h"
 #include "../debug/debug.h"
 
@@ -126,5 +125,7 @@ void masterwork(void);
 void spi_handler_init(void);
 
 void dcd_edpt_xfer_partial(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, uint16_t flag);
+
+void handle_spi_slave_event(void);
 
 #endif //PICO_FIRMWARE_USB_EVENT_HANDLERS_H

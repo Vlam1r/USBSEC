@@ -1,62 +1,70 @@
-//
-// Copyright and stuff
-//
-
-#include <stdio.h>
-
+#include <hardware/vreg.h>
 #include "pico/stdlib.h"
-//#include "lib/usb_phy/usb_common.h"
+#include "hardware/gpio.h"
+#include "lib/messages/messages.h"
+#include "lib/rp2040/rp2040_usb.h"
+#include "lib/debug/debug.h"
+#include "pico/multicore.h"
 
-#include "lib/usb_pio/pio_usb.h"
-//#include "lib/usb_phy/usb_phy.h"
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "EndlessLoop"
 
-const int PIN_USB_D_MINUS = 14;
-const int PIN_USB_D_PLUS = 15;
-const int USB_FULL_SPEED_BAUD = 12 * 1000 * 1000; // 12 Mbps
+void core1_loop(void) {
+    while (true) {
+        tight_loop_contents();
+        sync();
+    }
+}
 
-int main(void) {
-    // Overclocking Pico to 144MHz
-    // 144MHz = 12MHz * 4 * 3 so PIO clkdiv will be integer
-    set_sys_clock_khz(144000, true);
-    stdio_init_all();
+void core0_loop(void) {
+    while (true) {
+        tight_loop_contents();
+        switch (get_role()) {
+            case SPI_ROLE_SLAVE:
+                slavework();
+                hcd_rp2040_irq_new();
+                break;
+            case SPI_ROLE_MASTER:
+                handle_spi_slave_event();
+                dcd_rp2040_irq_new();
+                break;
+        }
+    }
+}
 
-    sleep_ms(3000);
+#pragma clang diagnostic pop
+
+int main() {
+    set_sys_clock_khz(144000, true); // Slight overclock to a multiple of 12MHz (default 125MHz)
+
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-    gpio_put(PICO_DEFAULT_LED_PIN, 1);
-    printf("USB Serial begin\n");
 
-    //usb_device_init();
+    // Debug printing
+    //
+    set_print_flag(PRINT_REASON_PREAMBLE);
+    set_print_flag(PRINT_REASON_DCD_BUFFER);
 
-    // Wait until configured
-    /*while (!configured) {
-        tight_loop_contents();
-    }*/
+    /*set_print_flag(PRINT_REASON_IRQ);
+    set_print_flag(PRINT_REASON_USB_EXCHANGES);
+    set_print_flag(PRINT_REASON_SPI_MESSAGES);
+    set_print_flag(PRINT_REASON_XFER_COMPLETE);
+    set_print_flag(PRINT_REASON_SETUP_REACTION);
+    set_print_flag(PRINT_REASON_SLAVE_DATA);*/
 
-    // Get ready to rx from host
-    //usb_start_transfer(usb_get_endpoint_configuration(EP1_OUT_ADDR), NULL, 64);
+    messages_config();
+    multicore_launch_core1(core1_loop);
 
-    PIO pio = pio0;
-    uint sm = 0;
-    uint offset = pio_add_program(pio, &usb_program);
-
-    usb_program_init(pio, sm, offset, PIN_USB_D_MINUS, PIN_USB_D_PLUS, USB_FULL_SPEED_BAUD);
-
-    uint8_t setup[3] = {0b10010110, 0b00011001, 0b00001100};
-    uint8_t response[20];
-    int len;
-
-    printf("Start send setup packet\n");
-    pio_usb_send_SE0_terminated_packet(pio, sm, setup, 3);
-
-    printf("Start receive packet\n");
-    len = pio_usb_read_SE0_terminated_packet(pio, sm, response);
-    printf("Done!\n");
-    // Everything is interrupt driven so just loop here
-    while (true) {
-        printf("%d", len);
-        sleep_ms(1000);
-        tight_loop_contents();
+    if (get_role() == SPI_ROLE_MASTER) {
+        // Master is device
+        dcd_init_new(0);
+        dcd_int_enable_new(0);
+    } else {
+        // Slave is host
+        hcd_init(0);
+        hcd_int_enable(0);
     }
 
+    core0_loop();
 }
+
