@@ -43,7 +43,14 @@ uint16_t spi_receive_blocking(uint8_t *data) {
 
     spi_read_blocking(spi_default, 0, hdr, 4);
 #if __IS_MASTER__
-    busy_wait_us(5); // 2us delay is too little, 3us is ok. Going for 5us just to be safe
+    /*
+     * Assuming spi frequency of 4MHz...
+     * Delay of 2us is too little, while 3us is ok. Going for 5us jus to be safe.
+     * Possible explanation why delay is needed here:
+     * Slave needs some time to set up next spi transmission,
+     * so if we start reading too soon we get unexpected behaviour.
+     */
+    busy_wait_us(5);
 #endif
     spi_read_blocking(spi_default, 0, data, *len);
 
