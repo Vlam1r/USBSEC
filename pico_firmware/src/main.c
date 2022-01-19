@@ -58,20 +58,18 @@ int main() {
     set_print_flag(PRINT_REASON_USB_EXCHANGES);
     //set_print_flag(PRINT_REASON_SPI_MESSAGES);
     set_print_flag(PRINT_REASON_XFER_COMPLETE);
-    set_print_flag(PRINT_REASON_SETUP_REACTION);
+    //set_print_flag(PRINT_REASON_SETUP_REACTION);
     set_print_flag(PRINT_REASON_SLAVE_DATA);
-    //set_print_flag(PRINT_REASON_SYNC);
+    set_print_flag(PRINT_REASON_SYNC);
 
     messages_config();
 
     if (get_role() == SPI_ROLE_MASTER) {
         // Master is device
         dcd_init_new(0);
-        //dcd_int_enable_new(0);
     } else {
         // Slave is host
         hcd_init(0);
-        //hcd_int_enable(0);
     }
 
     multicore_launch_core1(core1_loop);

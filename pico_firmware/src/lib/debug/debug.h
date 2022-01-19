@@ -1,4 +1,4 @@
-// Copyright (c) 2021. Vladimir Viktor Mirjanic
+// Copyright (c) 2021-2022. Vladimir Viktor Mirjanic
 
 //
 // Created by vlamir on 11/17/21.
@@ -7,7 +7,7 @@
 #ifndef PICO_FIRMWARE_DEBUG_H
 #define PICO_FIRMWARE_DEBUG_H
 
-#include <pico/printf.h>
+#include <pico.h>
 #include <stdarg.h>
 
 typedef enum {

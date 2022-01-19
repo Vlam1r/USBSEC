@@ -1,10 +1,11 @@
-// Copyright (c) 2021. Vladimir Viktor Mirjanic
+// Copyright (c) 2021-2022. Vladimir Viktor Mirjanic
 
 //
 // Created by vlamir on 11/17/21.
 //
 
 #include "debug.h"
+#include <pico/printf.h>
 
 static bool flags[PRINT_REASON_COUNT];
 

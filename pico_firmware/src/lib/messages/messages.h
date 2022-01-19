@@ -7,23 +7,12 @@
 #ifndef PICO_FIRMWARE_MESSAGES_H
 #define PICO_FIRMWARE_MESSAGES_H
 
-#include <hardware/structs/usb.h>
-#include "pico/stdlib.h"
-#include "pico/util/queue.h"
-#include "../debug/debug.h"
+#include "pico.h"
 #include "masterslave.h"
-#include "malloc.h"
-#include "string.h"
-#include "hardware/spi.h"
-#include "spi_data.h"
-
-#include "pico/binary_info.h"
 
 #define SPI_QUEUE_MAX_CAPACITY 20
 
 enum gpio_pin {
-    GPIO_MASTER_SELECT_PIN = 2,             // High for master, low for slave
-    /**/
     /**
      * \set_by Slave
      * \description High when device is connected to slave
@@ -66,17 +55,10 @@ typedef struct {
     uint8_t *payload;
 } spi_message_t;
 
-typedef void(*void_func_t)(void);
 
 void messages_config(void);
 
 spi_role get_role(void);
-
-void set_spi_pin_handler(void_func_t fun);
-
-//void send_message(const uint8_t *data, uint16_t len, uint16_t new_flag);
-
-//uint16_t recieve_message(uint8_t *data);
 
 void enqueue_spi_message(spi_message_t *message);
 

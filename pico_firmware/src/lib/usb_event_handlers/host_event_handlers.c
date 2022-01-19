@@ -75,13 +75,10 @@ void slavework() {
 }
 
 void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
-    set_spi_pin_handler(slavework);
-    //dev_addr = 0;
     gpio_put(GPIO_SLAVE_DEVICE_ATTACHED_PIN, 1);
 }
 
 void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
-    set_spi_pin_handler(NULL);
     gpio_put(GPIO_SLAVE_DEVICE_ATTACHED_PIN, 0);
 }
 

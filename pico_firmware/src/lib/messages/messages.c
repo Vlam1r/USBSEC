@@ -6,14 +6,17 @@
 
 #include "messages.h"
 
-void_func_t handler = NULL;
+#include <hardware/structs/usb.h>
+#include <pico/stdlib.h>
+#include "pico/util/queue.h"
+#include "../debug/debug.h"
+#include "malloc.h"
+#include "string.h"
+#include "spi_data.h"
+#include "hardware/spi.h"
 
 queue_t tx, rx;
 uint8_t bugger[1025];
-
-void set_spi_pin_handler(void_func_t fun) {
-    handler = fun;
-}
 
 /// Prepare a GPIO pint to be used as IO between microcontrollers
 /// \param pin Pin to be used
@@ -61,8 +64,6 @@ void messages_config(void) {
     //
     if (get_role() == SPI_ROLE_MASTER) {
         debug_print(PRINT_REASON_PREAMBLE, "\n--------\n MASTER \n--------\n");
-    } else {
-        debug_print(PRINT_REASON_PREAMBLE, "\n-------\n SLAVE \n-------\n");
     }
 
     // Init spi queues
@@ -178,6 +179,7 @@ void sync(void) {
                 msg.payload = bugger;
                 msg.payload_length = recieve_message(bugger);
                 debug_print(PRINT_REASON_SYNC, "[SYNC] Received message from slave\n");
+                debug_print_array(PRINT_REASON_SYNC, bugger, msg.payload_length);
                 msg.e_flag = flag;
                 queue_add_with_copy(&rx, &msg);
             }
@@ -193,9 +195,7 @@ void sync(void) {
             gpio_put(6, 0);
             bugger[0] = queue_get_level_unsafe(&tx);
             rec_count = bugger[0];
-            //gpio_put(4, 1);
             send_message(bugger, 1, 0);
-            //gpio_put(4, 0);
             while (rec_count--) {
                 queue_remove_blocking(&tx, &msg);
                 spi_send_blocking(msg.payload, msg.payload_length, msg.e_flag);

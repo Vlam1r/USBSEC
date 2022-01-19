@@ -1,4 +1,4 @@
-// Copyright (c) 2021. Vladimir Viktor Mirjanic
+// Copyright (c) 2021-2022. Vladimir Viktor Mirjanic
 
 //
 // Created by vlamir on 11/23/21.
@@ -7,7 +7,7 @@
 #ifndef PICO_FIRMWARE_SPI_DATA_H
 #define PICO_FIRMWARE_SPI_DATA_H
 
-#include "pico/stdlib.h"
+#include "pico.h"
 
 #define SPI_BAUDRATE (int)(4*1000*1000) // 8MHz is too much at 144MHz clock
 

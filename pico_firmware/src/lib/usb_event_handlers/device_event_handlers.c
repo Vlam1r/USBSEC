@@ -7,7 +7,6 @@
 #include "usb_event_handlers.h"
 
 static uint8_t bugger[1000];
-bool handling_setup = false;
 bool permit_0x81 = false;
 int count0x81 = 0;
 uint8_t other_edpt;
@@ -21,7 +20,6 @@ tusb_control_request_t setup;
 static void handle_setup_response(spi_message_t *msg);
 
 void handle_spi_slave_event(void) {
-    //if (handling_setup) return;
 
     spi_message_t msg;
     while (dequeue_spi_message(&msg)) {
@@ -62,11 +60,10 @@ void handle_spi_slave_event(void) {
 }
 
 void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool in_isr) {
-    //debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Setup handling started.\n");
     while (!gpio_get(GPIO_SLAVE_DEVICE_ATTACHED_PIN)) tight_loop_contents();
     memcpy(&setup, p_setup, sizeof setup);
-    set_spi_pin_handler(handle_spi_slave_event);
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Received new setup.\n");
+
     if (setup.bRequest == 0x5 /*SET ADDRESS*/) {
         /*
          * If request is SET_ADDRESS we have to also change the address on slave.
@@ -78,8 +75,6 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool i
                 .e_flag = CHG_ADDR
         };
         enqueue_spi_message(&msg);
-        uint8_t arr[10];
-        //get_only_response(arr); TODO investigate
         return;
     }
 
@@ -135,7 +130,7 @@ static void handle_setup_response(spi_message_t *msg) {
     if (setup.bRequest == 0x09 /* SET CONFIG */) {
         debug_print(PRINT_REASON_SETUP_REACTION, "Configuration confirmed.\n");
     }
-    handling_setup = false;
+
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Setup handling ended.\n");
     dcd_edpt_xfer_new(0, 0x80, arr, len);
     if (setup.bmRequestType_bit.direction == 1) {

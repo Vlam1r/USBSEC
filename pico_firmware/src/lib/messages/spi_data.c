@@ -28,10 +28,9 @@ void spi_send_blocking(const uint8_t *data, uint16_t len, uint16_t new_flag) {
     spi_write_blocking(spi_default, data, len);
 }
 
-/// Receive array via SPI. Slave/master agnostic
+/// Receive array via SPI. Slave/master agnostic*
 /// \param data Array to be sent
-/// \param len Length to be sent
-/// \param new_flag New flag to be set on both master and slave
+/// \return Length of transmission
 ///
 uint16_t spi_receive_blocking(uint8_t *data) {
     uint8_t hdr[4];
