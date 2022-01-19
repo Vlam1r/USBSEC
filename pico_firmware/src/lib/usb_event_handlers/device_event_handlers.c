@@ -25,7 +25,7 @@ void handle_spi_slave_event(void) {
 
     spi_message_t msg;
     while (dequeue_spi_message(&msg)) {
-        uint8_t ep_addr = msg.payload[msg.payload_length--];
+        uint8_t ep_addr = msg.payload[--msg.payload_length];
         debug_print(PRINT_REASON_SLAVE_DATA,
                     "[SLAVE DATA] Packet for 0x%x of length %d with flag 0x%x\n",
                     ep_addr, msg.payload_length, msg.e_flag);
