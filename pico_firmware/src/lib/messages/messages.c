@@ -1,3 +1,5 @@
+// Copyright (c) 2022. Vladimir Viktor Mirjanic
+
 //
 // Created by vlamir on 11/2/21.
 //
@@ -37,10 +39,10 @@ void messages_config(void) {
 
     // Setup IO pins
     //
-    init_gpio_pin(GPIO_SYNCING, SPI_ROLE_MASTER);
+    init_gpio_pin(GPIO_SYNC, SPI_ROLE_SLAVE);
     init_gpio_pin(GPIO_SLAVE_WAITING_PIN, SPI_ROLE_MASTER);
     init_gpio_pin(GPIO_SLAVE_DEVICE_ATTACHED_PIN, SPI_ROLE_MASTER);
-    init_gpio_pin(GPIO_SLAVE_RECEIVE_PIN, SPI_ROLE_SLAVE);
+    //init_gpio_pin(GPIO_SYNC_DIR, SPI_ROLE_SLAVE);
 
     // Setup SPI and its pins
     //
@@ -85,7 +87,7 @@ static void queue_add_with_copy(queue_t *q, spi_message_t *message) {
 static void send_message(const uint8_t *data, uint16_t len, uint16_t new_flag) {
 
     // On master we have to prepare slave for data reception before sending
-    // Master sets GPIO_SLAVE_RECEIVE_PIN high
+    // Master sets GPIO_SYNC_DIR high
     // Slave responds by setting GPIO_SLAVE_WAITING_PIN high
     //
     // On slave this isn't necessary as slave can't send over SPI if master doesn't read
@@ -158,37 +160,44 @@ bool dequeue_spi_message(spi_message_t *message) {
 
 void sync(void) {
     spi_message_t msg;
-    if (get_role() == SPI_ROLE_MASTER) {
-        while (!queue_is_empty(&tx)) {
-            queue_remove_blocking(&tx, &msg);
-            send_message(msg.payload, msg.payload_length, msg.e_flag);
-        }
-        send_message(NULL, 0, SLAVE_DATA_QUERY);
-        assert(recieve_message(bugger) == 1);
-        int rec_count = bugger[0];
-        while (rec_count--) {
-            msg.payload = bugger;
-            msg.payload_length = recieve_message(bugger);
-            msg.e_flag = flag;
-            queue_add_with_copy(&rx, &msg);
-        }
-
-    } else {
-        while (!gpio_get(GPIO_SYNCING)) {
-            tight_loop_contents();
-        }
-        while (true) {
-            msg.payload = bugger;
-            msg.payload_length = recieve_message(bugger);
-            msg.e_flag = flag;
-            if (flag & SLAVE_DATA_QUERY) break;
-            queue_add_with_copy(&rx, &msg);
-        }
-        bugger[0] = queue_get_level(&tx);
-        send_message(bugger, 1, 0);
-        while (!queue_is_empty(&tx)) {
-            queue_remove_blocking(&tx, &msg);
-            spi_send_blocking(msg.payload, msg.payload_length, msg.e_flag);
-        }
+    int rec_count;
+    switch (get_role()) {
+        case SPI_ROLE_MASTER:
+            while (!queue_is_empty(&tx)) {
+                queue_remove_blocking(&tx, &msg);
+                debug_print(PRINT_REASON_SYNC, "[SYNC] Sending from TX queue with flag 0x%x\n", msg.e_flag);
+                send_message(msg.payload, msg.payload_length, msg.e_flag);
+            }
+            //debug_print(PRINT_REASON_SYNC, "[SYNC] Sending slave data query\n");
+            send_message(NULL, 0, SLAVE_DATA_QUERY);
+            assert(recieve_message(bugger) == 1);
+            rec_count = bugger[0];
+            while (rec_count--) {
+                msg.payload = bugger;
+                msg.payload_length = recieve_message(bugger);
+                debug_print(PRINT_REASON_SYNC, "[SYNC] Received message from slave\n");
+                msg.e_flag = flag;
+                queue_add_with_copy(&rx, &msg);
+            }
+            break;
+        case SPI_ROLE_SLAVE:
+            while (true) {
+                msg.payload = bugger;
+                msg.payload_length = recieve_message(bugger);
+                msg.e_flag = flag;
+                if (flag & SLAVE_DATA_QUERY) break;
+                queue_add_with_copy(&rx, &msg);
+            }
+            gpio_put(6, 0);
+            bugger[0] = queue_get_level_unsafe(&tx);
+            rec_count = bugger[0];
+            //gpio_put(4, 1);
+            send_message(bugger, 1, 0);
+            //gpio_put(4, 0);
+            while (rec_count--) {
+                queue_remove_blocking(&tx, &msg);
+                spi_send_blocking(msg.payload, msg.payload_length, msg.e_flag);
+            }
+            break;
     }
 }

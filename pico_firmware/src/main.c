@@ -1,3 +1,5 @@
+// Copyright (c) 2022. Vladimir Viktor Mirjanic
+
 #include <hardware/vreg.h>
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
@@ -10,19 +12,26 @@
 #pragma ide diagnostic ignored "EndlessLoop"
 
 void core1_loop(void) {
+    gpio_init(6);
+    gpio_set_dir(6, GPIO_OUT);
+    gpio_init(4);
+    gpio_set_dir(4, GPIO_OUT);
     while (true) {
-        tight_loop_contents();
+        gpio_put(6, 1);
         sync();
     }
 }
 
 void core0_loop(void) {
+    gpio_init(5);
+    gpio_set_dir(5, GPIO_OUT);
     while (true) {
-        tight_loop_contents();
+        gpio_put(5, 1);
+        gpio_put(5, 0);
         switch (get_role()) {
             case SPI_ROLE_SLAVE:
-                slavework();
                 hcd_rp2040_irq_new();
+                slavework();
                 break;
             case SPI_ROLE_MASTER:
                 handle_spi_slave_event();
@@ -45,26 +54,27 @@ int main() {
     set_print_flag(PRINT_REASON_PREAMBLE);
     set_print_flag(PRINT_REASON_DCD_BUFFER);
 
-    /*set_print_flag(PRINT_REASON_IRQ);
+    set_print_flag(PRINT_REASON_IRQ);
     set_print_flag(PRINT_REASON_USB_EXCHANGES);
-    set_print_flag(PRINT_REASON_SPI_MESSAGES);
+    //set_print_flag(PRINT_REASON_SPI_MESSAGES);
     set_print_flag(PRINT_REASON_XFER_COMPLETE);
     set_print_flag(PRINT_REASON_SETUP_REACTION);
-    set_print_flag(PRINT_REASON_SLAVE_DATA);*/
+    set_print_flag(PRINT_REASON_SLAVE_DATA);
+    //set_print_flag(PRINT_REASON_SYNC);
 
     messages_config();
-    multicore_launch_core1(core1_loop);
 
     if (get_role() == SPI_ROLE_MASTER) {
         // Master is device
         dcd_init_new(0);
-        dcd_int_enable_new(0);
+        //dcd_int_enable_new(0);
     } else {
         // Slave is host
         hcd_init(0);
-        hcd_int_enable(0);
+        //hcd_int_enable(0);
     }
 
+    multicore_launch_core1(core1_loop);
     core0_loop();
 }
 

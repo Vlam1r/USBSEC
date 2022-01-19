@@ -229,6 +229,8 @@ void dcd_rp2040_irq_new(void) {
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
 
+    if (status == 0) return;
+
     debug_print(PRINT_REASON_IRQ, "[IRQ] Master interrupt: %0#10lx\n", status);
 
     // SE0 for 2.5 us or more (will last at least 10ms)
@@ -399,7 +401,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
 bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
     assert(rhport == 0);
     if (ep_addr & 0x80) {
-        debug_print(PRINT_REASON_USB_EXCHANGES, "Sending to host:\n");
+        debug_print(PRINT_REASON_USB_EXCHANGES, "Sending to host at 0x%x array of len %d:\n", ep_addr, total_bytes);
         debug_print_array(PRINT_REASON_USB_EXCHANGES, buffer, total_bytes);
     }
     hw_endpoint_xfer(ep_addr, buffer, total_bytes);

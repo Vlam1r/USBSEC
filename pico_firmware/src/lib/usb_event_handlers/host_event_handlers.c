@@ -1,3 +1,5 @@
+// Copyright (c) 2022. Vladimir Viktor Mirjanic
+
 //
 // Created by vlamir on 11/9/21.
 //
@@ -21,55 +23,55 @@ void define_setup_packet(uint8_t *setup) {
     memcpy(&setup_packet, setup, 8);
 }
 
-bool print = false;
-int curredpt = -1;
-
 void slavework() {
 
     spi_message_t message;
-    dequeue_spi_message(&message);
+    while (dequeue_spi_message(&message)) {
 
-    if (message.e_flag & RESET_USB) {
-        /*
-         * Reset USB device
-         */
-        gpio_put(GPIO_LED_PIN, 0);
-        dev_addr = 0; // TODO is this needed?
-        usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
-    } else if (message.e_flag & EDPT_OPEN) {
-        /*
-         * Open sent endpoint
-         */
-        memcpy(&registry[reg_count++], bugger, message.payload_length);
-        hcd_edpt_open(bugger);
-    } else if (message.e_flag & SETUP_DATA) {
-        /*
-         * Data is copied into setup
-         */
-        define_setup_packet(bugger);
-        level = 0;
-        hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
-    } else if (message.e_flag & USB_DATA) {
-        /*
-         * Data is copied into buffer
-         */
-        level = 3;
-        //gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        hcd_edpt_xfer(0, dev_addr, bugger[message.payload_length - 1], bugger, message.payload_length - 1);
-        gpio_put(PICO_DEFAULT_LED_PIN, 0);
-    } else if (message.e_flag & CHG_ADDR) {
-        tusb_control_request_t req = {
-                .bmRequestType = 0,
-                .wValue = 7,
-                .bRequest = 0x5 // SET ADDRESS
-        };
-        define_setup_packet(&req);
-        level = 0;
-        //gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
-        dev_addr = 7;
+        if (message.e_flag & RESET_USB) {
+            /*
+             * Reset USB device
+             */
+            dev_addr = 0; // TODO is this needed?
+            usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
+        } else if (message.e_flag & EDPT_OPEN) {
+            /*
+             * Open sent endpoint
+             */
+            memcpy(&registry[reg_count++], message.payload, message.payload_length);
+            hcd_edpt_open(message.payload);
+        } else if (message.e_flag & SETUP_DATA) {
+            /*
+             * Data is copied into setup
+             */
+            define_setup_packet(message.payload);
+            level = 0;
+            hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
+        } else if (message.e_flag & USB_DATA) {
+            /*
+             * Data is copied into buffer
+             */
+            level = 3;
+            //gpio_put(PICO_DEFAULT_LED_PIN, 1);
+            hcd_edpt_xfer(0,
+                          dev_addr,
+                          message.payload[message.payload_length - 1],
+                          message.payload,
+                          message.payload_length - 1);
+            gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        } else if (message.e_flag & CHG_ADDR) {
+            tusb_control_request_t req = {
+                    .bmRequestType = 0,
+                    .wValue = 7,
+                    .bRequest = 0x5 // SET ADDRESS
+            };
+            define_setup_packet(&req);
+            level = 0;
+            //gpio_put(PICO_DEFAULT_LED_PIN, 1);
+            hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
+            dev_addr = 7;
+        }
     }
-
 }
 
 void hcd_event_device_attach(uint8_t rhport, bool in_isr) {

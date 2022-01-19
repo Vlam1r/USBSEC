@@ -1,3 +1,5 @@
+// Copyright (c) 2022. Vladimir Viktor Mirjanic
+
 //
 // Created by vlamir on 11/6/21.
 //
@@ -10,7 +12,7 @@ bool permit_0x81 = false;
 int count0x81 = 0;
 uint8_t other_edpt;
 
-tusb_control_request_t *req;
+tusb_control_request_t setup;
 
 /*
  * Device Events
@@ -19,13 +21,15 @@ tusb_control_request_t *req;
 static void handle_setup_response(spi_message_t *msg);
 
 void handle_spi_slave_event(void) {
-    if (handling_setup) return;
+    //if (handling_setup) return;
 
     spi_message_t msg;
     while (dequeue_spi_message(&msg)) {
-        assert(msg.e_flag & IS_PACKET);
         uint8_t ep_addr = msg.payload[msg.payload_length--];
-        debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Packet for 0x%x\n", ep_addr);
+        debug_print(PRINT_REASON_SLAVE_DATA,
+                    "[SLAVE DATA] Packet for 0x%x of length %d with flag 0x%x\n",
+                    ep_addr, msg.payload_length, msg.e_flag);
+        assert(msg.e_flag & IS_PACKET);
         if (msg.e_flag & SETUP_DATA) {
             handle_setup_response(&msg);
         } else if (~ep_addr & 0x80) {
@@ -57,13 +61,13 @@ void handle_spi_slave_event(void) {
     //debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Done.\n");
 }
 
-void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_isr) {
+void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool in_isr) {
     //debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Setup handling started.\n");
     while (!gpio_get(GPIO_SLAVE_DEVICE_ATTACHED_PIN)) tight_loop_contents();
-    req = (tusb_control_request_t *) setup;
+    memcpy(&setup, p_setup, sizeof setup);
     set_spi_pin_handler(handle_spi_slave_event);
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Received new setup.\n");
-    if (req->bRequest == 0x5 /*SET ADDRESS*/) {
+    if (setup.bRequest == 0x5 /*SET ADDRESS*/) {
         /*
          * If request is SET_ADDRESS we have to also change the address on slave.
          * Some devices will break if they don't get their address changed!
@@ -76,7 +80,6 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
         enqueue_spi_message(&msg);
         uint8_t arr[10];
         //get_only_response(arr); TODO investigate
-        dcd_edpt_xfer_new(0, 0x80, NULL, 0); // ACK
         return;
     }
 
@@ -85,7 +88,7 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
      */
     spi_message_t msg = {
             .payload_length = sizeof(setup),
-            .payload = setup,
+            .payload = &setup,
             .e_flag = SETUP_DATA | DEBUG_PRINT_AS_HEX
     };
     enqueue_spi_message(&msg);
@@ -93,11 +96,15 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_
 
 static void handle_setup_response(spi_message_t *msg) {
     uint8_t *arr = msg->payload;
-    uint16_t len = msg->payload_length - 1;
+    uint16_t len = msg->payload_length;
     /*
      * Hooks
      */
-    if (((uint8_t *) req)[3] == 0x2 && ((uint8_t *) req)[6] > 9) { // TODO Harden
+    if (((tusb_control_request_t *) usb_dpram->setup_packet)->bRequest == 0x5 /*SET ADDRESS*/) {
+        dcd_edpt_xfer_new(0, 0x80, NULL, 0); // ACK
+        return;
+    }
+    if (((uint8_t *) &setup)[3] == 0x2 && ((uint8_t *) &setup)[6] > 9) { // TODO Harden
         /*
          * Endpoints
          */
@@ -125,13 +132,13 @@ static void handle_setup_response(spi_message_t *msg) {
             pos += arr[pos];
         }
     }
-    if (req->bRequest == 0x09 /* SET CONFIG */) {
+    if (setup.bRequest == 0x09 /* SET CONFIG */) {
         debug_print(PRINT_REASON_SETUP_REACTION, "Configuration confirmed.\n");
     }
     handling_setup = false;
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Setup handling ended.\n");
     dcd_edpt_xfer_new(0, 0x80, arr, len);
-    if (req->bmRequestType_bit.direction == 1) {
+    if (setup.bmRequestType_bit.direction == 1) {
         dcd_edpt_xfer_new(0, 0x00, NULL, 0); //STATUS?
     }
 }
@@ -185,7 +192,7 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
 }
 
 void device_event_bus_reset() {
-    printf("Resetting\n");
+    debug_print(PRINT_REASON_IRQ, "[IRQ] --- RESETTING BUS ---\n");
     while (!gpio_get(GPIO_SLAVE_DEVICE_ATTACHED_PIN)) tight_loop_contents();
     spi_message_t msg = {
             .payload = NULL,

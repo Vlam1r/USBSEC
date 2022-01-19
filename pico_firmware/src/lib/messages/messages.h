@@ -1,3 +1,5 @@
+// Copyright (c) 2022. Vladimir Viktor Mirjanic
+
 //
 // Created by vlamir on 11/2/21.
 //
@@ -31,13 +33,13 @@ enum gpio_pin {
      * \set_by Master
      * \description Initiate syncing
      */
-    GPIO_SYNCING = 14,
+    GPIO_SYNC = 14,
     /**
      * \set_by Slave
      * \description Slave ready to receive over SPI
      */
     GPIO_SLAVE_WAITING_PIN = 13,
-    GPIO_SLAVE_RECEIVE_PIN = 12,            // Master -> Slave: Data to send
+    GPIO_SYNC_DIR = 12,            // Master -> Slave: Data to send
     /**/
     GPIO_LED_PIN = 25                       // Onboard LED Control
 };

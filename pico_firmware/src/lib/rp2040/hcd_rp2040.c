@@ -162,7 +162,7 @@ static void hw_trans_complete(void) {
 void hcd_rp2040_irq_new(void) {
     uint32_t status = usb_hw->ints;
     uint32_t handled = 0;
-    gpio_put(PICO_DEFAULT_LED_PIN, 0);
+    //gpio_put(PICO_DEFAULT_LED_PIN, 0);
 
     if (status & USB_INTS_HOST_CONN_DIS_BITS) {
         handled |= USB_INTS_HOST_CONN_DIS_BITS;
