@@ -161,6 +161,7 @@ bool dequeue_spi_message(spi_message_t *message) {
 void sync(void) {
     spi_message_t msg;
     int rec_count;
+    gpio_put(6, 1);
     switch (get_role()) {
         case SPI_ROLE_MASTER:
             while (!queue_is_empty(&tx)) {
@@ -168,6 +169,7 @@ void sync(void) {
                 debug_print(PRINT_REASON_SYNC, "[SYNC] Sending from TX queue with flag 0x%x\n", msg.e_flag);
                 send_message(msg.payload, msg.payload_length, msg.e_flag);
             }
+            gpio_put(6, 0);
             //debug_print(PRINT_REASON_SYNC, "[SYNC] Sending slave data query\n");
             send_message(NULL, 0, SLAVE_DATA_QUERY);
             assert(recieve_message(bugger) == 1);

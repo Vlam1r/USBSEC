@@ -17,7 +17,6 @@ void core1_loop(void) {
     gpio_init(4);
     gpio_set_dir(4, GPIO_OUT);
     while (true) {
-        gpio_put(6, 1);
         sync();
     }
 }
@@ -26,15 +25,16 @@ void core0_loop(void) {
     gpio_init(5);
     gpio_set_dir(5, GPIO_OUT);
     while (true) {
-        gpio_put(5, 1);
         gpio_put(5, 0);
         switch (get_role()) {
             case SPI_ROLE_SLAVE:
                 hcd_rp2040_irq_new();
+                gpio_put(5, 1);
                 slavework();
                 break;
             case SPI_ROLE_MASTER:
                 handle_spi_slave_event();
+                gpio_put(5, 1);
                 dcd_rp2040_irq_new();
                 break;
         }
