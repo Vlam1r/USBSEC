@@ -9,7 +9,7 @@
 
 #include "pico.h"
 
-#define SPI_BAUDRATE (int)(4*1000*1000) // 8MHz is too much at 144MHz clock
+#define SPI_BAUDRATE (int)(7*1000*1000) // 8MHz is too much at 144MHz clock
 
 extern uint16_t flag;
 
