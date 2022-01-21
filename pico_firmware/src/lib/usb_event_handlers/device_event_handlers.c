@@ -4,6 +4,7 @@
 // Created by vlamir on 11/6/21.
 //
 
+#include <malloc.h>
 #include "usb_event_handlers.h"
 
 static uint8_t bugger[1000];
@@ -52,9 +53,10 @@ void handle_spi_slave_event(void) {
              */
             permit_0x81 = true;
             count0x81++;
-            printf("+++++ STARTING PARTIAL XFER ON %d++++\n", ep_addr);
+            debug_print(PRINT_REASON_USB_EXCHANGES, "+++++ STARTING PARTIAL XFER ON %d++++\n", ep_addr);
             dcd_edpt_xfer_partial(ep_addr, msg.payload, msg.payload_length, msg.e_flag);
         }
+        free(msg.payload);
     }
     //debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Done.\n");
 }

@@ -169,6 +169,7 @@ void sync(void) {
                 queue_remove_blocking(&tx, &msg);
                 debug_print(PRINT_REASON_SYNC, "[SYNC] Sending from TX queue with flag 0x%x\n", msg.e_flag);
                 send_message(msg.payload, msg.payload_length, msg.e_flag);
+                free(msg.payload);
             }
             gpio_put(6, 0);
             //debug_print(PRINT_REASON_SYNC, "[SYNC] Sending slave data query\n");
@@ -199,6 +200,7 @@ void sync(void) {
             while (rec_count--) {
                 queue_remove_blocking(&tx, &msg);
                 spi_send_blocking(msg.payload, msg.payload_length, msg.e_flag);
+                free(msg.payload);
             }
             break;
     }

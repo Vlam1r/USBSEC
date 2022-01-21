@@ -4,6 +4,7 @@
 // Created by vlamir on 11/9/21.
 //
 
+#include <malloc.h>
 #include "usb_event_handlers.h"
 
 /*
@@ -26,7 +27,7 @@ void define_setup_packet(uint8_t *setup) {
 void slavework() {
 
     spi_message_t message;
-    while (dequeue_spi_message(&message)) {
+    if (dequeue_spi_message(&message)) {
 
         if (message.e_flag & RESET_USB) {
             /*
@@ -53,10 +54,11 @@ void slavework() {
              */
             level = 3;
             //gpio_put(PICO_DEFAULT_LED_PIN, 1);
+            memcpy(bugger, message.payload, message.payload_length - 1);
             hcd_edpt_xfer(0,
                           dev_addr,
                           message.payload[message.payload_length - 1],
-                          message.payload,
+                          bugger,
                           message.payload_length - 1);
             gpio_put(PICO_DEFAULT_LED_PIN, 0);
         } else if (message.e_flag & CHG_ADDR) {
@@ -71,6 +73,7 @@ void slavework() {
             hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
             dev_addr = 7;
         }
+        free(message.payload);
     }
 }
 

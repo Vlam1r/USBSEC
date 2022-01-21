@@ -223,8 +223,10 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
 
     if (ep->active) {
         // TODO: Is this acceptable for interrupt packets?
-        TU_LOG(1, "WARN: starting new transfer on already active ep %d %s\n", tu_edpt_number(ep->ep_addr),
-               ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+        debug_print(PRINT_REASON_USB_EXCHANGES,
+                    "WARN: starting new transfer on already active ep %d %s\n",
+                    tu_edpt_number(ep->ep_addr),
+                    ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
 
         hw_endpoint_reset_transfer_new(ep);
     }
@@ -274,7 +276,7 @@ void hw_endpoint_xfer_partial(struct hw_endpoint *ep, uint8_t *buffer, uint16_t 
 
     buf_ctrl &= ~USB_BUF_CTRL_LAST;
     if (total_len < 64) {
-        printf("+++++ LAST BUGGER+++++\n");
+        debug_print(PRINT_REASON_USB_EXCHANGES, "+++++ LAST BUGGER+++++\n");
         buf_ctrl |= USB_BUF_CTRL_LAST;
     }
     ep->partial = false;
