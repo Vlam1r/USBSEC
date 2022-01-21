@@ -9,52 +9,6 @@
 #include "hardware/resets.h"
 #include "../usb_event_handlers/usb_event_handlers.h"
 
-#define pico_info(...)  TU_LOG(2, __VA_ARGS__)
-#define pico_trace(...) TU_LOG(3, __VA_ARGS__)
-
-// Hardware information per endpoint
-/*typedef struct hw_endpoint
-{
-    // Is this a valid struct
-    bool configured;
-    
-    // Transfer direction (i.e. IN is rx for host but tx for device)
-    // allows us to common up transfer functions
-    bool rx;
-    
-    uint8_t ep_addr;
-    uint8_t next_pid;
-
-    // Endpoint control register
-    io_rw_32 *endpoint_control;
-
-    // Buffer control register
-    io_rw_32 *buffer_control;
-
-    // Buffer pointer in usb dpram
-    uint8_t *hw_data_buf;
-
-    // Current transfer information
-    bool active;
-    uint16_t remaining_len;
-    uint16_t xferred_len;
-
-    // User buffer in main memory
-    uint8_t *user_buf;
-
-    // Data needed from EP descriptor
-    uint16_t wMaxPacketSize;
-
-    // Interrupt, bulk, etc
-    uint8_t transfer_type;
-
-    // Only needed for host
-    uint8_t dev_addr;
-
-    // If interrupt endpoint
-    uint8_t interrupt_num;
-} hw_endpoint_t;*/
-
 void hw_endpoint_xfer_partial(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len, uint16_t flag);
 
 void rp2040_usb_init(void);

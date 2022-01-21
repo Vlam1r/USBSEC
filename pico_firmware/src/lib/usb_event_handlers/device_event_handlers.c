@@ -6,6 +6,7 @@
 
 #include <malloc.h>
 #include "usb_event_handlers.h"
+#include "../debug/debug.h"
 
 static uint8_t bugger[1000];
 bool permit_0x81 = false;
@@ -85,7 +86,7 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool i
      */
     spi_message_t msg = {
             .payload_length = sizeof(setup),
-            .payload = &setup,
+            .payload = (uint8_t *) &setup,
             .e_flag = SETUP_DATA | DEBUG_PRINT_AS_HEX
     };
     enqueue_spi_message(&msg);
@@ -119,12 +120,11 @@ static void handle_setup_response(spi_message_t *msg) {
                     other_edpt = edpt->bEndpointAddress;
 
                 spi_message_t reply = {
-                        .payload = edpt,
+                        .payload = (uint8_t *) edpt,
                         .payload_length = edpt->bLength,
                         .e_flag = EDPT_OPEN
                 };
                 enqueue_spi_message(&reply); // TODO ONLY IF INTERRUPT?
-                insert_into_registry(edpt);
             }
             pos += arr[pos];
         }

@@ -19,7 +19,7 @@ void debug_print(print_reason reason, char *format, ...) {
 #endif
 }
 
-void set_print_flag(print_reason reason) {
+static void set_print_flag(print_reason reason) {
     flags[reason] = true;
 }
 
@@ -40,6 +40,28 @@ void debug_print_array(print_reason reason, const uint8_t *data, uint32_t len) {
     }
     if (len % 8 != 0) {
         printf("\n");
+    }
+#endif
+}
+
+void init_debug_printing() {
+#ifdef __IS_MASTER__
+    switch (__DEBUG_LEVEL__) {
+        case 3:
+            set_print_flag(PRINT_REASON_USB_EXCHANGES);
+            set_print_flag(PRINT_REASON_SPI_MESSAGES);
+            set_print_flag(PRINT_REASON_SETUP_REACTION);
+            set_print_flag(PRINT_REASON_SYNC);
+        case 2:
+            set_print_flag(PRINT_REASON_DCD_BUFFER);
+            set_print_flag(PRINT_REASON_IRQ);
+            set_print_flag(PRINT_REASON_SLAVE_DATA);
+            set_print_flag(PRINT_REASON_XFER_COMPLETE);
+        case 1:
+            set_print_flag(PRINT_REASON_PREAMBLE);
+        case 0:
+        default:
+            break;
     }
 #endif
 }

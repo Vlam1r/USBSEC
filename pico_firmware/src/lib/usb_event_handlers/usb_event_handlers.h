@@ -1,3 +1,5 @@
+// Copyright (c) 2022. Vladimir Viktor Mirjanic
+
 //
 // Created by vlamir on 11/6/21.
 //
@@ -11,8 +13,6 @@
 #include "tusb_common.h"
 #include "tusb_types.h"
 #include <hardware/structs/usb.h>
-#include "../edpt_registry/edpt_registry.h"
-#include "../debug/debug.h"
 
 typedef struct hw_endpoint {
     // Is this a valid struct
@@ -78,10 +78,10 @@ typedef enum {
 void define_setup_packet(uint8_t *setup);
 
 // Helper to send device attach event
-void hcd_event_device_attach(uint8_t rhport, bool in_isr);
+void hcd_event_device_attach();
 
 // Helper to send device removal event
-void hcd_event_device_remove(uint8_t rhport, bool in_isr);
+void hcd_event_device_remove();
 
 void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr);
 
@@ -89,7 +89,7 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
 
 void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *setup, bool in_isr);
 
-extern bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
+extern void hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
 
 void device_event_bus_reset(void);
 
@@ -114,15 +114,9 @@ bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
 
 void dcd_init_new(uint8_t rhport);
 
-void dcd_int_enable_new(uint8_t rhport);
-
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *request);
 
 void slavework(void);
-
-void masterwork(void);
-
-void spi_handler_init(void);
 
 void dcd_edpt_xfer_partial(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, uint16_t flag);
 

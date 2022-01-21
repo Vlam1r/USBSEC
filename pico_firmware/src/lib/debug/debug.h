@@ -28,6 +28,6 @@ void debug_print(print_reason reason, char *format, ...);
 
 void debug_print_array(print_reason reason, const uint8_t *data, uint32_t len);
 
-void set_print_flag(print_reason reason);
+void init_debug_printing(void);
 
 #endif //PICO_FIRMWARE_DEBUG_H

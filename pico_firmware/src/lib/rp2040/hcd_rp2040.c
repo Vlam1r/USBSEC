@@ -25,20 +25,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "tusb_option.h"
-
 #include "pico.h"
 #include "rp2040_usb.h"
-
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
-//#include "osal/osal.h"
-
-//#include "host/hcd.h"
-//#include "host/usbh.h"
-
-#define ROOT_PORT 0
 
 //--------------------------------------------------------------------+
 // Low level rp2040 controller functions
@@ -103,21 +91,11 @@ static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep) {
 
 static void hw_handle_buff_status(void) {
     uint32_t remaining_buffers = usb_hw->buf_status;
-    pico_trace("buf_status 0x%08x\n", remaining_buffers);
 
     // Check EPX first
     uint bit = 0b1;
     if (remaining_buffers & bit) {
         remaining_buffers &= ~bit;
-        struct hw_endpoint *ep = &epx;
-
-        uint32_t ep_ctrl = *ep->endpoint_control;
-        if (ep_ctrl & EP_CTRL_DOUBLE_BUFFERED_BITS) {
-            TU_LOG(3, "Double Buffered: ");
-        } else {
-            TU_LOG(3, "Single Buffered: ");
-        }
-        TU_LOG_HEX(3, ep_ctrl);
         _handle_buff_status_bit(bit, active_ep);
     }
 
@@ -150,7 +128,6 @@ static void hw_trans_complete(void) {
     }
 
     if (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS) {
-        pico_trace("Sent setup packet\n");
         hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
     } else {
         // Don't care. Will handle this in buff status
@@ -162,15 +139,14 @@ static void hw_trans_complete(void) {
 void hcd_rp2040_irq_new(void) {
     uint32_t status = usb_hw->ints;
     uint32_t handled = 0;
-    //gpio_put(PICO_DEFAULT_LED_PIN, 0);
 
     if (status & USB_INTS_HOST_CONN_DIS_BITS) {
         handled |= USB_INTS_HOST_CONN_DIS_BITS;
 
         if (dev_speed()) {
-            hcd_event_device_attach(ROOT_PORT, true);
+            hcd_event_device_attach();
         } else {
-            hcd_event_device_remove(ROOT_PORT, true);
+            hcd_event_device_remove();
         }
 
         // Clear speed change interrupt
@@ -179,14 +155,12 @@ void hcd_rp2040_irq_new(void) {
 
     if (status & USB_INTS_BUFF_STATUS_BITS) {
         handled |= USB_INTS_BUFF_STATUS_BITS;
-        TU_LOG(2, "Buffer complete\n");
         hw_handle_buff_status();
     }
 
     if (status & USB_INTS_TRANS_COMPLETE_BITS) {
         handled |= USB_INTS_TRANS_COMPLETE_BITS;
         usb_hw_clear->sie_status = USB_SIE_STATUS_TRANS_COMPLETE_BITS;
-        TU_LOG(2, "Transfer complete\n");
         hw_trans_complete();
     }
 
@@ -208,7 +182,6 @@ void hcd_rp2040_irq_new(void) {
 
     if (status & USB_INTS_STALL_BITS) {
         // We have rx'd a stall from the device
-        pico_trace("Stall REC\n");
         handled |= USB_INTS_STALL_BITS;
         usb_hw_clear->sie_status = USB_SIE_STATUS_STALL_REC_BITS;
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
@@ -221,7 +194,6 @@ void hcd_rp2040_irq_new(void) {
 
     if (status & USB_INTS_ERROR_RX_TIMEOUT_BITS) {
         handled |= USB_INTS_ERROR_RX_TIMEOUT_BITS;
-        //spi_send_string("---RX TIMEOUT---");
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
         gpio_init(5);
         gpio_set_dir(5, GPIO_OUT);
@@ -233,9 +205,6 @@ void hcd_rp2040_irq_new(void) {
 
     if (status & USB_INTS_ERROR_DATA_SEQ_BITS) {
         usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
-        TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(*epx.buffer_control),
-               tu_u32_high16(*epx.buffer_control));
-        //spi_send_string("---DATA SEQ---");
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
         gpio_init(4);
         gpio_set_dir(4, GPIO_OUT);
@@ -268,7 +237,6 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type, uint8_t 
 
     if (transfer_type == TUSB_XFER_INTERRUPT) {
         ep = _next_free_interrupt_ep();
-        pico_info("Allocate interrupt ep %d\n", ep->interrupt_num);
         assert(ep);
         ep->buffer_control = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
         ep->endpoint_control = &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
@@ -311,10 +279,6 @@ _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uin
     ep->wMaxPacketSize = wMaxPacketSize;
     ep->transfer_type = transfer_type;
 
-    pico_trace("hw_endpoint_init dev %d ep %d %s xfer %d\n", ep->dev_addr, tu_edpt_number(ep->ep_addr),
-               ep_dir_string[tu_edpt_dir(ep->ep_addr)], ep->transfer_type);
-    pico_trace("dev %d ep %d %s setup buffer @ 0x%p\n", ep->dev_addr, tu_edpt_number(ep->ep_addr),
-               ep_dir_string[tu_edpt_dir(ep->ep_addr)], ep->hw_data_buf);
     uint dpram_offset = hw_data_offset(ep->hw_data_buf);
     // Bits 0-5 should be 0
     assert(!(dpram_offset & 0b111111));
@@ -326,7 +290,6 @@ _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uin
                       | dpram_offset;
     ep_reg |= bmInterval ? (bmInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB : 0;
     *ep->endpoint_control = ep_reg;
-    pico_trace("endpoint control (0x%p) <- 0x%x\n", ep->endpoint_control, ep_reg);
     ep->configured = true;
 
     if (bmInterval) {
@@ -357,7 +320,6 @@ _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uin
 // HCD API
 //--------------------------------------------------------------------+
 bool hcd_init(uint8_t rhport) {
-    pico_trace("hcd_init %d\n", rhport);
     assert(rhport == 0);
 
     // Reset any previous state
@@ -365,8 +327,6 @@ bool hcd_init(uint8_t rhport) {
 
     // Force VBUS detect to always present, for now we assume vbus is always provided (without using VBUS En)
     usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
-
-    //irq_set_exclusive_handler(USBCTRL_IRQ, hcd_rp2040_irq_new);
 
     // clear epx and interrupt eps
     memset(&ep_pool, 0, sizeof(ep_pool));
@@ -386,47 +346,6 @@ bool hcd_init(uint8_t rhport) {
     return true;
 }
 
-void hcd_port_reset(uint8_t rhport) {
-    pico_trace("hcd_port_reset\n");
-    assert(rhport == 0);
-    // TODO: Nothing to do here yet. Perhaps need to reset some state?
-}
-
-bool hcd_port_connect_status(uint8_t rhport) {
-    pico_trace("hcd_port_connect_status\n");
-    assert(rhport == 0);
-    return usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
-}
-
-tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
-    assert(rhport == 0);
-    // TODO: Should enumval this register
-    switch (dev_speed()) {
-        case 1:
-            return TUSB_SPEED_LOW;
-        case 2:
-            return TUSB_SPEED_FULL;
-        default:
-
-            gpio_put(PICO_DEFAULT_LED_PIN, 1);
-            panic("Invalid speed\n");
-            return TUSB_SPEED_INVALID;
-    }
-}
-
-// Close all opened endpoint belong to this device
-void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
-    (void) rhport;
-    (void) dev_addr;
-
-    pico_trace("hcd_device_close %d\n", dev_addr);
-}
-
-uint32_t hcd_frame_number(uint8_t rhport) {
-    (void) rhport;
-    return usb_hw->sof_rd;
-}
-
 void hcd_int_enable(uint8_t rhport) {
     assert(rhport == 0);
     irq_set_enabled(USBCTRL_IRQ, true);
@@ -444,8 +363,6 @@ void hcd_int_disable(uint8_t rhport) {
 
 bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc) {
 
-    pico_trace("hcd_edpt_open dev_addr %d, ep_addr %d\n", dev_addr, ep_desc->bEndpointAddress);
-
     // Allocated differently based on if it's an interrupt endpoint or not
     struct hw_endpoint *ep = _hw_endpoint_allocate(ep_desc->bmAttributes.xfer, ep_desc->bEndpointAddress);
     assert(ep);
@@ -462,8 +379,6 @@ bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc) {
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
     (void) rhport;
-
-    pico_trace("hcd_edpt_xfer dev_addr %d, ep_addr 0x%x, len %d\n", dev_addr, ep_addr, buflen);
 
     uint8_t const ep_num = tu_edpt_number(ep_addr);
     tusb_dir_t const ep_dir = tu_edpt_dir(ep_addr);
@@ -505,7 +420,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     return true;
 }
 
-bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]) {
+void hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]) {
     (void) rhport;
 
     // Copy data into setup packet buffer
@@ -530,29 +445,4 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
                            (need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
 
     usb_hw->sie_ctrl = flags;
-
-    return true;
-}
-
-
-//bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
-//{
-//    // EPX is shared, so multiple device addresses and endpoint addresses share that
-//    // so if any transfer is active on epx, we are busy. Interrupt endpoints have their own
-//    // EPX so ep->active will only be busy if there is a pending transfer on that interrupt endpoint
-//    // on that device
-//    pico_trace("hcd_edpt_busy dev addr %d ep_addr 0x%x\n", dev_addr, ep_addr);
-//    struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
-//    assert(ep);
-//    bool busy = ep->active;
-//    pico_trace("busy == %d\n", busy);
-//    return busy;
-//}
-
-bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr) {
-    (void) dev_addr;
-    (void) ep_addr;
-    gpio_put(PICO_DEFAULT_LED_PIN, 1);
-    panic("hcd_clear_stall");
-    return true;
 }

@@ -28,6 +28,7 @@
 
 #include "pico.h"
 #include "rp2040_usb.h"
+#include "../debug/debug.h"
 
 // Current implementation force vbus detection as always present, causing device think it is always plugged into host.
 // Therefore it cannot detect disconnect event, mistaken it as suspend.
@@ -73,32 +74,11 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type) {
     uint dpram_offset = hw_data_offset(ep->hw_data_buf);
     assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
 
-    pico_info("  Alloced %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
-
     // Fill in endpoint control register with buffer offset
     uint32_t const reg = EP_CTRL_ENABLE_BITS | (transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
 
     *ep->endpoint_control = reg;
 }
-
-#if 0 // todo unused
-static void _hw_endpoint_close(struct hw_endpoint *ep)
-{
-    // Clear hardware registers and then zero the struct
-    // Clears endpoint enable
-    *ep->endpoint_control = 0;
-    // Clears buffer available, etc
-    *ep->buffer_control = 0;
-    // Clear any endpoint state
-    memset(ep, 0, sizeof(struct hw_endpoint));
-}
-
-static void hw_endpoint_close(uint8_t ep_addr)
-{
-    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-    _hw_endpoint_close(ep);
-}
-#endif
 
 static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
     struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
@@ -235,7 +215,6 @@ void dcd_rp2040_irq_new(void) {
 
     // SE0 for 2.5 us or more (will last at least 10ms)
     if (status & USB_INTS_BUS_RESET_BITS) {
-        pico_trace("BUS RESET\n");
 
         handled |= USB_INTS_BUS_RESET_BITS;
 
@@ -259,28 +238,6 @@ void dcd_rp2040_irq_new(void) {
         handled |= USB_INTS_BUFF_STATUS_BITS;
         hw_handle_buff_status();
     }
-
-#if FORCE_VBUS_DETECT == 0
-    // Since we force VBUS detect On, device will always think it is connected and
-    // couldn't distinguish between disconnect and suspend
-    if (status & USB_INTS_DEV_CONN_DIS_BITS)
-    {
-        handled |= USB_INTS_DEV_CONN_DIS_BITS;
-
-        if ( usb_hw->sie_status & USB_SIE_STATUS_CONNECTED_BITS )
-        {
-          // Connected: nothing to do
-        }else
-        {
-          // Disconnected
-          dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
-        }
-
-        usb_hw_clear->sie_status = USB_SIE_STATUS_CONNECTED_BITS;
-    }
-#endif
-
-
 
     /* Note from pico datasheet 4.1.2.6.4 (v1.2)
      * If you enable the suspend interrupt, it is likely you will see a suspend interrupt when
@@ -307,13 +264,6 @@ void dcd_rp2040_irq_new(void) {
     }
 }
 
-#define USB_INTS_ERROR_BITS ( \
-    USB_INTS_ERROR_DATA_SEQ_BITS      |  \
-    USB_INTS_ERROR_BIT_STUFF_BITS     |  \
-    USB_INTS_ERROR_CRC_BITS           |  \
-    USB_INTS_ERROR_RX_OVERFLOW_BITS   |  \
-    USB_INTS_ERROR_RX_TIMEOUT_BITS)
-
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
@@ -334,8 +284,6 @@ void dcd_init_new(uint8_t rhport) {
     // Force VBUS detect so the device thinks it is plugged into a host
     usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 #endif
-
-    //irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq_new);
 
     // Init control endpoints
     tu_memclr(hw_endpoints[0], 2 * sizeof(hw_endpoint_t));
@@ -358,11 +306,6 @@ void dcd_init_new(uint8_t rhport) {
                    (FORCE_VBUS_DETECT ? 0 : USB_INTS_DEV_CONN_DIS_BITS);
 
     dcd_connect(rhport);
-}
-
-void dcd_int_enable_new(uint8_t rhport) {
-    assert(rhport == 0);
-    irq_set_enabled(USBCTRL_IRQ, true);
 }
 
 // disconnect by disabling internal pull-up resistor on D+/D-
@@ -439,14 +382,6 @@ void dcd_edpt_clear_stall_new(uint8_t rhport, uint8_t ep_addr) {
         ep->next_pid = 0;
         hw_endpoint_buffer_control_clear_mask32(ep, USB_BUF_CTRL_STALL);
     }
-}
-
-void dcd_edpt_close_new(uint8_t rhport, uint8_t ep_addr) {
-    (void) rhport;
-    (void) ep_addr;
-
-    // usbd.c says: In progress transfers on this EP may be delivered after this call
-    pico_trace("dcd_edpt_close %02x\n", ep_addr);
 }
 
 void dcd_int_handler_new(uint8_t rhport) {

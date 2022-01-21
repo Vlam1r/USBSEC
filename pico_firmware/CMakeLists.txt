@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.17)
 include(pico_sdk_import.cmake)
 
 project(pico_firmware
-        VERSION 0.2.0
+        VERSION 0.3.0
         DESCRIPTION "USBSEC Firmware for RPi Pico"
         LANGUAGES C CXX ASM)
 
@@ -27,7 +27,6 @@ add_executable(pico_firmware_master
         src/lib/rp2040/rp2040_usb.c
         src/lib/usb_event_handlers/device_event_handlers.c
         src/lib/usb_event_handlers/host_event_handlers.c
-        src/lib/edpt_registry/edpt_registry.c
         src/lib/debug/debug.c
         src/lib/messages/spi_data.c)
 
@@ -39,18 +38,14 @@ add_executable(pico_firmware_slave
         src/lib/rp2040/rp2040_usb.c
         src/lib/usb_event_handlers/device_event_handlers.c
         src/lib/usb_event_handlers/host_event_handlers.c
-        src/lib/edpt_registry/edpt_registry.c
         src/lib/debug/debug.c
         src/lib/messages/spi_data.c)
-
-#pico_generate_pio_header(pico_firmware ${CMAKE_CURRENT_LIST_DIR}/src/lib/usb_pio/usb.pio)
 
 target_link_libraries(pico_firmware_master
         pico_stdlib
         pico_multicore
         hardware_resets
         hardware_irq
-        #hardware_pio
         hardware_spi
         )
 
@@ -59,7 +54,6 @@ target_link_libraries(pico_firmware_slave
         pico_multicore
         hardware_resets
         hardware_irq
-        #hardware_pio
         hardware_spi
         )
 
@@ -72,5 +66,4 @@ pico_add_extra_outputs(pico_firmware_master)
 pico_add_extra_outputs(pico_firmware_slave)
 
 target_compile_definitions(pico_firmware_master PUBLIC __IS_MASTER__)
-
-#add_subdirectory(src/test)
+target_compile_definitions(pico_firmware_master PUBLIC __DEBUG_LEVEL__=0)

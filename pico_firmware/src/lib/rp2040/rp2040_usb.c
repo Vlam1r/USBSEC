@@ -26,9 +26,7 @@
  */
 
 #include "tusb_option.h"
-
-#if CFG_TUSB_MCU == OPT_MCU_RP2040
-
+#include "../debug/debug.h"
 #include "rp2040_usb.h"
 
 static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
@@ -44,21 +42,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-/*
-void rp2040_usb_init(void)
-{
-  // Reset usb controller
-  reset_block(RESETS_RESET_USBCTRL_BITS);
-  unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 
-  // Clear any previous state just in case
-  memset(usb_hw, 0, sizeof(*usb_hw));
-  memset(usb_dpram, 0, sizeof(*usb_dpram));
-
-  // Mux the controller to the onboard usb phy
-  usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;
-}
-*/
 void hw_endpoint_reset_transfer_new(struct hw_endpoint *ep) {
     ep->active = false;
     ep->remaining_len = 0;
@@ -213,9 +197,6 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     // Finally, write to buffer_control which will trigger the transfer
     // the next time the controller polls this dpram address
     hw_endpoint_buffer_control_set_value32(ep, val);
-
-    pico_trace("buffer control (0x%p) <- 0x%x\n", ep->buffer_control, val);
-    //print_bufctrl16(val);
 }
 
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len) {
@@ -319,14 +300,10 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
     uint16_t lp = 0;
     // Short packet
     if (xferred_bytes < 64) {
-        pico_trace("  Short packet on buffer %d with %u bytes\n", buf_id, xferred_bytes);
         // Reduce total length as this is last packet
         ep->remaining_len = 0;
         lp = LAST_PACKET;
     }
-
-    //if (get_role() == SPI_ROLE_SLAVE)
-    //    send_event_to_master(ep->user_buf, xferred_bytes, ep->ep_addr, FIRST_PACKET | lp);
 
     return xferred_bytes;
 }
@@ -366,8 +343,6 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep) {
 
     //spi_send_blocking(&len, 1, USB_DATA | DEBUG_PRINT_AS_HEX);
     if (ep->remaining_len == 0) {
-        pico_trace("Completed transfer of %d bytes on ep %d %s\n",
-                   ep->xferred_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
         // Notify caller we are done so it can notify the tinyusb stack
         _hw_endpoint_lock_update(ep, -1);
         return true;
@@ -380,5 +355,3 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep) {
 
     return false;
 }
-
-#endif

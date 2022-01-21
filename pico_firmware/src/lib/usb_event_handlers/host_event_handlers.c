@@ -17,15 +17,11 @@ static uint8_t level = 0;
 static uint8_t outlen = 0;
 static uint8_t dev_addr = 0;
 
-static tusb_desc_endpoint_t registry[16];
-static uint8_t reg_count = 0;
-
 void define_setup_packet(uint8_t *setup) {
     memcpy(&setup_packet, setup, 8);
 }
 
 void slavework() {
-
     spi_message_t message;
     if (dequeue_spi_message(&message)) {
 
@@ -39,8 +35,7 @@ void slavework() {
             /*
              * Open sent endpoint
              */
-            memcpy(&registry[reg_count++], message.payload, message.payload_length);
-            hcd_edpt_open(message.payload);
+            hcd_edpt_open((const tusb_desc_endpoint_t *) message.payload);
         } else if (message.e_flag & SETUP_DATA) {
             /*
              * Data is copied into setup
@@ -53,23 +48,23 @@ void slavework() {
              * Data is copied into buffer
              */
             level = 3;
-            //gpio_put(PICO_DEFAULT_LED_PIN, 1);
             memcpy(bugger, message.payload, message.payload_length - 1);
             hcd_edpt_xfer(0,
                           dev_addr,
                           message.payload[message.payload_length - 1],
                           bugger,
                           message.payload_length - 1);
-            gpio_put(PICO_DEFAULT_LED_PIN, 0);
         } else if (message.e_flag & CHG_ADDR) {
+            /*
+             * Change device address to 7
+             */
             tusb_control_request_t req = {
                     .bmRequestType = 0,
                     .wValue = 7,
                     .bRequest = 0x5 // SET ADDRESS
             };
-            define_setup_packet(&req);
+            define_setup_packet((uint8_t *) &req);
             level = 0;
-            //gpio_put(PICO_DEFAULT_LED_PIN, 1);
             hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
             dev_addr = 7;
         }
@@ -77,11 +72,11 @@ void slavework() {
     }
 }
 
-void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
+void hcd_event_device_attach() {
     gpio_put(GPIO_SLAVE_DEVICE_ATTACHED_PIN, 1);
 }
 
-void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
+void hcd_event_device_remove() {
     gpio_put(GPIO_SLAVE_DEVICE_ATTACHED_PIN, 0);
 }
 
