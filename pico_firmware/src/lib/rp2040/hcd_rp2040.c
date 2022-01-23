@@ -446,3 +446,7 @@ void hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
     usb_hw->sie_ctrl = flags;
 }
+
+void change_epx_packetsize(uint8_t bMaxPacketSize0) {
+    epx.wMaxPacketSize = bMaxPacketSize0;
+}

@@ -160,7 +160,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     // Prepare buffer control register value
     uint32_t val = ep->remaining_len | USB_BUF_CTRL_AVAIL;
 
-    uint16_t const buflen = tu_min16(ep->remaining_len, 64);
+    uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
     ep->remaining_len -= buflen;
 
     if (!ep->rx) {
@@ -180,9 +180,10 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
         // ZLP also toggle data
         ep->next_pid ^= 1u;
     } else {
+        //TODO packetsize 0 ??!!
         uint32_t packet_count = 1 + ((ep->remaining_len + buflen - 1) / ep->wMaxPacketSize);
 
-        if (packet_count & 0x01) {
+        if (packet_count & 0x1 || true) {
             ep->next_pid ^= 1u;
         }
     }
@@ -190,7 +191,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     // Is this the last buffer? Only really matters for host mode. Will trigger
     // the trans complete irq but also stop it polling. We only really care about
     // trans complete for setup packets being sent
-    if (true) { // todo!
+    if (ep->remaining_len == 0) { // todo!
         val |= USB_BUF_CTRL_LAST;
     }
 
@@ -299,7 +300,7 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
 
     uint16_t lp = 0;
     // Short packet
-    if (xferred_bytes < 64) {
+    if (xferred_bytes < ep->wMaxPacketSize) {
         // Reduce total length as this is last packet
         ep->remaining_len = 0;
         lp = LAST_PACKET;

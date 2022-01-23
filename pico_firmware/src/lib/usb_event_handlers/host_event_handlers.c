@@ -11,11 +11,19 @@
  * Host events
  */
 
+/// Setup packet to change device address
+static const tusb_control_request_t CHG_ADDR_SETUP = {
+        .bmRequestType = 0,
+        .wValue = 7,
+        .bRequest = 0x5 // SET ADDRESS
+};
+
 static tusb_control_request_t setup_packet;
 static uint8_t bugger[1000];
 static uint8_t level = 0;
 static uint8_t outlen = 0;
 static uint8_t dev_addr = 0;
+static uint8_t debug_lock = false;
 
 void define_setup_packet(uint8_t *setup) {
     memcpy(&setup_packet, setup, 8);
@@ -23,51 +31,74 @@ void define_setup_packet(uint8_t *setup) {
 
 void slavework() {
     spi_message_t message;
+    if (debug_lock) return;
     if (dequeue_spi_message(&message)) {
 
-        if (message.e_flag & RESET_USB) {
-            /*
-             * Reset USB device
-             */
-            dev_addr = 0; // TODO is this needed?
-            usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
-        } else if (message.e_flag & EDPT_OPEN) {
-            /*
-             * Open sent endpoint
-             */
-            hcd_edpt_open((const tusb_desc_endpoint_t *) message.payload);
-        } else if (message.e_flag & SETUP_DATA) {
-            /*
-             * Data is copied into setup
-             */
-            define_setup_packet(message.payload);
-            level = 0;
-            hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
-        } else if (message.e_flag & USB_DATA) {
-            /*
-             * Data is copied into buffer
-             */
-            level = 3;
-            memcpy(bugger, message.payload, message.payload_length - 1);
-            hcd_edpt_xfer(0,
-                          dev_addr,
-                          message.payload[message.payload_length - 1],
-                          bugger,
-                          message.payload_length - 1);
-        } else if (message.e_flag & CHG_ADDR) {
-            /*
-             * Change device address to 7
-             */
-            tusb_control_request_t req = {
-                    .bmRequestType = 0,
-                    .wValue = 7,
-                    .bRequest = 0x5 // SET ADDRESS
-            };
-            define_setup_packet((uint8_t *) &req);
-            level = 0;
-            hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
-            dev_addr = 7;
+        switch (message.e_flag & ~DEBUG_PRINT_AS_HEX) {
+
+            case RESET_USB:
+                /*
+                 * Reset USB device
+                 */
+                dev_addr = 0; // TODO is this needed?
+                usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
+                break;
+
+            case EDPT_OPEN:
+                /*
+                 * Open sent endpoint
+                 */
+                hcd_edpt_open((const tusb_desc_endpoint_t *) message.payload);
+                break;
+
+            case SETUP_DATA:
+                /*
+                 * Data is copied into setup
+                 */
+                debug_lock = true;
+                define_setup_packet(message.payload);
+                level = 0;
+                hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
+                break;
+
+            case USB_DATA:
+                /*
+                 * Data is copied into buffer
+                 */
+                level = 3;
+                memcpy(bugger, message.payload, message.payload_length - 1);
+                hcd_edpt_xfer(0,
+                              dev_addr,
+                              message.payload[message.payload_length - 1],
+                              bugger,
+                              message.payload_length - 1);
+                break;
+
+            case CHG_ADDR:
+                /*
+                 * Change device address to 7 (CHG_ADDR_SETUP.wValue)
+                 */
+                define_setup_packet((uint8_t *) &CHG_ADDR_SETUP);
+                level = 0;
+                hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
+                dev_addr = CHG_ADDR_SETUP.wValue;
+                break;
+
+            case CHG_EPX_PACKETSIZE:
+                /*
+                 * Force packet size change for old devices which have packetsize < 64
+                 * This is only needed for EPX as packet size will be set correctly for other endpoints
+                 * at open time
+                 */
+                assert(message.payload_length == 1);
+                change_epx_packetsize(message.payload[0]);
+                break;
+
+            default:
+                gpio_put(GPIO_LED_PIN, 1);
+                panic("Invalid message from master!");
         }
+
         free(message.payload);
     }
 }
@@ -97,6 +128,7 @@ static void send_event_to_master(uint16_t len, uint8_t ep_addr, uint16_t flag) {
         };
         enqueue_spi_message(&msg);
     }
+    debug_lock = false;
 }
 
 void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {

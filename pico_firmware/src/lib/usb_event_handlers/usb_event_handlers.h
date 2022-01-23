@@ -122,4 +122,6 @@ void dcd_edpt_xfer_partial(uint8_t ep_addr, uint8_t *buffer, uint16_t total_byte
 
 void handle_spi_slave_event(void);
 
+void change_epx_packetsize(uint8_t bMaxPacketSize0);
+
 #endif //PICO_FIRMWARE_USB_EVENT_HANDLERS_H

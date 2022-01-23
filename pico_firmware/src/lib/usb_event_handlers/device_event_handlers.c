@@ -95,17 +95,32 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool i
 static void handle_setup_response(spi_message_t *msg) {
     uint8_t *arr = msg->payload;
     uint16_t len = msg->payload_length;
+
+
     /*
-     * Hooks
+     * Set correct maxPacketSize on slave
+     */
+    if (setup.bRequest == 0x6 && setup.wValue == 0x100) {
+        spi_message_t reply = {
+                .payload_length = 1,
+                .payload = &arr[7],
+                .e_flag = CHG_EPX_PACKETSIZE | DEBUG_PRINT_AS_HEX
+        };
+        enqueue_spi_message(&reply);
+    }
+
+    /*
+     * Setup addreess special case
      */
     if (((tusb_control_request_t *) usb_dpram->setup_packet)->bRequest == 0x5 /*SET ADDRESS*/) {
         dcd_edpt_xfer_new(0, 0x80, NULL, 0); // ACK
         return;
     }
+
+    /*
+     * Handle endpoints and open them on slave
+     */
     if (((uint8_t *) &setup)[3] == 0x2 && ((uint8_t *) &setup)[6] > 9) { // TODO Harden
-        /*
-         * Endpoints
-         */
         debug_print(PRINT_REASON_SETUP_REACTION, "Started handling endpoints.\n");
         int pos = 0;
         while (pos < len) {
@@ -129,6 +144,7 @@ static void handle_setup_response(spi_message_t *msg) {
             pos += arr[pos];
         }
     }
+
     if (setup.bRequest == 0x09 /* SET CONFIG */) {
         debug_print(PRINT_REASON_SETUP_REACTION, "Configuration confirmed.\n");
     }

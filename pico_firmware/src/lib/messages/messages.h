@@ -41,6 +41,7 @@ typedef enum {
     EDPT_OPEN = 0x8,
     SLAVE_DATA_QUERY = 0x10,
     CHG_ADDR = 0x20,
+    CHG_EPX_PACKETSIZE = 0x40,
     /**/
     IS_PACKET = 0x0100,
     FIRST_PACKET = 0x0200,
@@ -65,5 +66,7 @@ void enqueue_spi_message(spi_message_t *message);
 bool dequeue_spi_message(spi_message_t *message);
 
 void sync(void);
+
+void fake_spi(void);
 
 #endif //PICO_FIRMWARE_MESSAGES_H
