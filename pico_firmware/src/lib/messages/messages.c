@@ -165,6 +165,8 @@ void sync(void) {
     gpio_put(6, 1);
     switch (get_role()) {
         case SPI_ROLE_MASTER:
+            if (!gpio_get(GPIO_SLAVE_DEVICE_ATTACHED_PIN))
+                return;
             while (!queue_is_empty(&tx)) {
                 queue_remove_blocking(&tx, &msg);
                 debug_print(PRINT_REASON_SYNC, "[SYNC] Sending from TX queue with flag 0x%x\n", msg.e_flag);

@@ -21,7 +21,6 @@ static const tusb_control_request_t CHG_ADDR_SETUP = {
 static tusb_control_request_t setup_packet;
 static uint8_t bugger[1000];
 static uint8_t level = 0;
-static uint8_t outlen = 0;
 static uint8_t dev_addr = 0;
 static uint8_t debug_lock = false;
 
@@ -134,27 +133,26 @@ static void send_event_to_master(uint16_t len, uint8_t ep_addr, uint16_t flag) {
 void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
     assert(result == 0 || result == 4);
     if (level == 0) {
-        // Setup packet response. Send IN or OUT token packet
-        level = 1;
-        if (setup_packet.bmRequestType_bit.direction == 0) {
-            // Data transport not supported
-            hcd_edpt_xfer(0, dev_addr_curr, 0x80, bugger, 64);
-        } else {
-            hcd_edpt_xfer(0, dev_addr_curr, 0x80, bugger, setup_packet.wLength);
-        }
-    } else if (level == 1) {
-        // Data packet response.
-        level = 2;
-        outlen = xferred_bytes;
-        if (setup_packet.bmRequestType_bit.direction == 0) {
+        /*
+         * Setup packet is sent to device. Now need to read data.
+         */
+        assert(xferred_bytes == 0);
+        assert(result == XFER_RESULT_SUCCESS);
 
-            send_event_to_master(0, ep_addr, FIRST_PACKET | LAST_PACKET | SETUP_DATA);
-        } else {
+        level = 1;
+        uint16_t buglen = (setup_packet.bmRequestType_bit.direction == 0) ? 64 : setup_packet.wLength;
+        hcd_edpt_xfer(0, dev_addr_curr, 0x80, bugger, buglen);
+    } else if (level == 1) {
+        /*
+         * Setup response data received.
+         */
+        level = 2;
+        send_event_to_master(xferred_bytes, ep_addr, FIRST_PACKET | LAST_PACKET | SETUP_DATA);
+        if (setup_packet.bmRequestType_bit.direction == 1) {
             hcd_edpt_xfer(0, dev_addr_curr, 0x00, NULL, 0); // Request ACK
         }
     } else if (level == 2) {
         // Ack sent
-        send_event_to_master(outlen, ep_addr, FIRST_PACKET | LAST_PACKET | SETUP_DATA);
     } else {
         /*
          * Non-control transfer
