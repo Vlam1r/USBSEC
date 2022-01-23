@@ -28,7 +28,8 @@ add_executable(pico_firmware_master
         src/lib/usb_event_handlers/device_event_handlers.c
         src/lib/usb_event_handlers/host_event_handlers.c
         src/lib/debug/debug.c
-        src/lib/messages/spi_data.c)
+        src/lib/messages/spi_data.c
+        src/lib/setup_response_aggregator/setup_response_aggregator.c)
 
 add_executable(pico_firmware_slave
         src/main.c
@@ -39,7 +40,8 @@ add_executable(pico_firmware_slave
         src/lib/usb_event_handlers/device_event_handlers.c
         src/lib/usb_event_handlers/host_event_handlers.c
         src/lib/debug/debug.c
-        src/lib/messages/spi_data.c)
+        src/lib/messages/spi_data.c
+        src/lib/setup_response_aggregator/setup_response_aggregator.c)
 
 target_link_libraries(pico_firmware_master
         pico_stdlib

@@ -300,7 +300,7 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
 
     uint16_t lp = 0;
     // Short packet
-    if (xferred_bytes < ep->wMaxPacketSize) {
+    if (xferred_bytes < ep->wMaxPacketSize || ep->wMaxPacketSize == 0 /*is first packet received*/) {
         // Reduce total length as this is last packet
         ep->remaining_len = 0;
         lp = LAST_PACKET;

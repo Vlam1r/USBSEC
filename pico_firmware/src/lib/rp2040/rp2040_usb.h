@@ -37,7 +37,7 @@ static inline void hw_endpoint_buffer_control_clear_mask32(struct hw_endpoint *e
     return hw_endpoint_buffer_control_update32(ep, ~value, 0);
 }
 
-static inline uintptr_t hw_data_offset(uint8_t *buf) {
+static inline uintptr_t hw_data_offset(const uint8_t *buf) {
     // Remove usb base from buffer pointer
     return (uintptr_t) buf ^ (uintptr_t) usb_dpram;
 }

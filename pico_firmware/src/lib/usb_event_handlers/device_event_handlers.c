@@ -7,6 +7,7 @@
 #include <malloc.h>
 #include "usb_event_handlers.h"
 #include "../debug/debug.h"
+#include "../setup_response_aggregator/setup_response_aggregator.h"
 
 static uint8_t bugger[1000];
 bool permit_0x81 = false;
@@ -19,7 +20,7 @@ tusb_control_request_t setup;
  * Device Events
  */
 
-static void handle_setup_response(spi_message_t *msg);
+static void handle_setup_response();
 
 void handle_spi_slave_event(void) {
 
@@ -31,7 +32,15 @@ void handle_spi_slave_event(void) {
                     ep_addr, msg.payload_length, msg.e_flag);
         assert(msg.e_flag & IS_PACKET);
         if (msg.e_flag & SETUP_DATA) {
-            handle_setup_response(&msg);
+            register_response(&msg);
+            if (msg.e_flag & LAST_PACKET) {
+                handle_setup_response();
+                send_packets_upstream();
+                if (setup.bmRequestType_bit.direction == 1) {
+                    dcd_edpt_xfer_new(0, 0x00, NULL, 0); //STATUS?
+                }
+            }
+
         } else if (~ep_addr & 0x80) {
             /*
              * OUT endpoint
@@ -92,10 +101,9 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool i
     enqueue_spi_message(&msg);
 }
 
-static void handle_setup_response(spi_message_t *msg) {
-    uint8_t *arr = msg->payload;
-    uint16_t len = msg->payload_length;
-
+static void handle_setup_response() {
+    uint8_t *arr = get_concatenated_response();
+    uint16_t len = get_concatenated_response_len();
 
     /*
      * Set correct maxPacketSize on slave
@@ -107,6 +115,7 @@ static void handle_setup_response(spi_message_t *msg) {
                 .e_flag = CHG_EPX_PACKETSIZE | DEBUG_PRINT_AS_HEX
         };
         enqueue_spi_message(&reply);
+        set_max_packet_size(arr[7]);
     }
 
     /*
@@ -150,10 +159,7 @@ static void handle_setup_response(spi_message_t *msg) {
     }
 
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Setup handling ended.\n");
-    dcd_edpt_xfer_new(0, 0x80, arr, len);
-    if (setup.bmRequestType_bit.direction == 1) {
-        dcd_edpt_xfer_new(0, 0x00, NULL, 0); //STATUS?
-    }
+
 }
 
 void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr) {

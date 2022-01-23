@@ -146,11 +146,15 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
         /*
          * Setup response data received.
          */
-        level = 2;
-        send_event_to_master(xferred_bytes, ep_addr, FIRST_PACKET | LAST_PACKET | SETUP_DATA);
-        if (setup_packet.bmRequestType_bit.direction == 1) {
-            hcd_edpt_xfer(0, dev_addr_curr, 0x00, NULL, 0); // Request ACK
+        uint16_t last = 0;
+        if (result == XFER_RESULT_SUCCESS) {
+            level = 2;
+            last = LAST_PACKET;
+            if (setup_packet.bmRequestType_bit.direction == 1) {
+                hcd_edpt_xfer(0, dev_addr_curr, 0x00, NULL, 0); // Request ACK
+            }
         }
+        send_event_to_master(xferred_bytes, ep_addr, last | SETUP_DATA);
     } else if (level == 2) {
         // Ack sent
     } else {
