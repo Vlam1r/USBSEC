@@ -8,7 +8,12 @@
 #include <string.h>
 #include "../usb_event_handlers/usb_event_handlers.h"
 
-static uint8_t bugger[64];
+/*
+ * Microsoft LifeChat LX-300 had a response of over 300 bytes
+ */
+#define MAX_SETUP_RESPONSE_BUGGER 1024
+
+static uint8_t bugger[MAX_SETUP_RESPONSE_BUGGER];
 static uint8_t mps = 64;
 static uint8_t idx = 0;
 static int16_t len = 0;

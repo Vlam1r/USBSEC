@@ -6,16 +6,21 @@
 
 #include "debug.h"
 #include <pico/printf.h>
+#include <pico/lock_core.h>
+#include <pico/mutex.h>
 
 static bool flags[PRINT_REASON_COUNT];
+static mutex_t serial_write_mtx;
 
 void debug_print(print_reason reason, char *format, ...) {
 #ifdef __IS_MASTER__
+    mutex_enter_blocking(&serial_write_mtx);
     if (!flags[reason]) return;
     va_list args;
     va_start(args, format);
     vprintf(format, args);
     va_end(args);
+    mutex_exit(&serial_write_mtx);
 #endif
 }
 
@@ -32,6 +37,7 @@ void debug_print_array(print_reason reason, const uint8_t *data, uint32_t len) {
 #ifdef __IS_MASTER__
     if (!flags[reason]) return;
 
+    mutex_enter_blocking(&serial_write_mtx);
     for (int i = 0; i < len; i++) {
         printf("0x%02x ", data[i]);
         if (i % 8 == 7) {
@@ -41,11 +47,13 @@ void debug_print_array(print_reason reason, const uint8_t *data, uint32_t len) {
     if (len % 8 != 0) {
         printf("\n");
     }
+    mutex_exit(&serial_write_mtx);
 #endif
 }
 
 void init_debug_printing() {
 #ifdef __IS_MASTER__
+    mutex_init(&serial_write_mtx);
     switch (__DEBUG_LEVEL__) {
         case 3:
             set_print_flag(PRINT_REASON_USB_EXCHANGES);

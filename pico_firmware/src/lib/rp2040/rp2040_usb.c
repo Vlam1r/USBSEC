@@ -183,7 +183,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
         //TODO packetsize 0 ??!!
         uint32_t packet_count = 1 + ((ep->remaining_len + buflen - 1) / ep->wMaxPacketSize);
 
-        if (packet_count & 0x1 || true) {
+        if (packet_count & 0x1) {
             ep->next_pid ^= 1u;
         }
     }
