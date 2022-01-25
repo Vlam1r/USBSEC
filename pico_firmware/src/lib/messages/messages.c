@@ -212,6 +212,13 @@ void fake_spi(void) {
     spi_message_t msg;
     uint8_t setup1[8] = {0x80, 0x06, 0x00, 0x01, 0x00, 0x00, 0x40, 0x00};
     uint8_t setup2[8] = {0x80, 0x06, 0x00, 0x01, 0x00, 0x00, 0x12, 0x00};
+    uint8_t setup3[8] = {0x80, 0x06, 0x00, 0x02, 0x00, 0x00, 0x09, 0x00};
+    uint8_t setup4[8] = {0x80, 0x06, 0x00, 0x02, 0x00, 0x00, 0x3b, 0x00}; // Variable length?
+    uint8_t edpt1[7] = {0x07, 0x05, 0x81, 0x03, 0x08, 0x00, 0x01};
+    uint8_t edpt2[7] = {0x07, 0x05, 0x83, 0x03, 0x08, 0x00, 0x01};
+    uint8_t setup5[8] = {0x80, 0x06, 0x00, 0x03, 0x00, 0x00, 0xff, 0x00};
+    uint8_t setup6[8] = {0x80, 0x06, 0x01, 0x03, 0x09, 0x04, 0xff, 0x00};
+    uint8_t setup7[8] = {0x00, 0x09, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t mps = 8;
 
     msg.payload = NULL;
@@ -234,9 +241,31 @@ void fake_spi(void) {
     msg.e_flag = 0x40;
     queue_add_with_copy(&rx, &msg);
 
-
     msg.payload = setup2;
     msg.payload_length = 8;
     msg.e_flag = 0x2;
+    queue_add_with_copy(&rx, &msg);
+    msg.payload = setup3;
+    queue_add_with_copy(&rx, &msg);
+    msg.payload = setup4;
+    queue_add_with_copy(&rx, &msg);
+
+    msg.payload = edpt1;
+    msg.payload_length = 7;
+    msg.e_flag = 0x8;
+    queue_add_with_copy(&rx, &msg);
+    msg.payload = edpt2;
+    queue_add_with_copy(&rx, &msg);
+
+    msg.payload = setup5;
+    msg.payload_length = 8;
+    msg.e_flag = 0x2;
+    queue_add_with_copy(&rx, &msg);
+    msg.payload = setup6;
+    queue_add_with_copy(&rx, &msg);
+    msg.payload = setup6;
+    queue_add_with_copy(&rx, &msg);
+
+    msg.payload = setup7;
     queue_add_with_copy(&rx, &msg);
 }

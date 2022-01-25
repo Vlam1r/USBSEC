@@ -16,12 +16,11 @@
 static uint8_t bugger[MAX_SETUP_RESPONSE_BUGGER];
 static uint8_t mps = 64;
 static uint8_t idx = 0;
-static int16_t len = 0;
+static uint16_t len = 0;
 
 void register_response(spi_message_t *message) {
-    memcpy(bugger + idx * mps, message->payload, message->payload_length);
+    memcpy(bugger + len, message->payload, message->payload_length);
     len += message->payload_length;
-    idx++;
 }
 
 uint8_t *get_concatenated_response(void) {
@@ -32,15 +31,18 @@ uint16_t get_concatenated_response_len(void) {
     return len;
 }
 
-void send_packets_upstream(void) {
-    idx = 0;
-    while (len > 0) {
-        dcd_edpt_xfer_new(0, 0x80, bugger + idx * mps, len < mps ? len : mps);
-        len -= mps;
-        idx++;
+bool send_packet_upstream(void) {
+    uint8_t xfer_len = len < mps ? len : mps;
+    dcd_edpt_xfer_new(0, 0x80, bugger + mps * idx, xfer_len);
+    len -= xfer_len;
+    idx++;
+
+    if (len == 0) {
+        idx = 0;
+        return true;
     }
-    idx = 0;
-    len = 0;
+
+    return false;
 }
 
 void set_max_packet_size(uint8_t new_mps) {

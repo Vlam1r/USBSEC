@@ -15,7 +15,7 @@ uint8_t *get_concatenated_response();
 
 uint16_t get_concatenated_response_len();
 
-void send_packets_upstream();
+bool send_packet_upstream();
 
 void set_max_packet_size(uint8_t new_mps);
 

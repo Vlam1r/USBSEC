@@ -15,6 +15,10 @@ int count0x81 = 0;
 uint8_t other_edpt;
 
 tusb_control_request_t setup;
+static enum {
+    READING_RESPONSE,
+    WRITING_RESPONSE
+} setup_response_dir = READING_RESPONSE;
 
 /*
  * Device Events
@@ -23,6 +27,16 @@ tusb_control_request_t setup;
 static void handle_setup_response();
 
 void handle_spi_slave_event(void) {
+    if (setup_response_dir == WRITING_RESPONSE) {
+        /*
+         * We handled a response, and now we are forwarding it to host.
+         */
+        bool done = send_packet_upstream();
+        if (done) {
+            setup_response_dir = READING_RESPONSE;
+        }
+        return;
+    }
 
     spi_message_t msg;
     while (dequeue_spi_message(&msg)) {
@@ -35,7 +49,7 @@ void handle_spi_slave_event(void) {
             register_response(&msg);
             if (msg.e_flag & LAST_PACKET) {
                 handle_setup_response();
-                send_packets_upstream();
+                setup_response_dir = WRITING_RESPONSE;
                 if (setup.bmRequestType_bit.direction == 1) {
                     dcd_edpt_xfer_new(0, 0x00, NULL, 0); //STATUS?
                 }
@@ -122,7 +136,6 @@ static void handle_setup_response() {
      * Setup addreess special case
      */
     if (((tusb_control_request_t *) usb_dpram->setup_packet)->bRequest == 0x5 /*SET ADDRESS*/) {
-        dcd_edpt_xfer_new(0, 0x80, NULL, 0); // ACK
         return;
     }
 
