@@ -6,7 +6,6 @@
 
 #include "debug.h"
 #include <pico/printf.h>
-#include <pico/lock_core.h>
 #include <pico/mutex.h>
 
 static bool flags[PRINT_REASON_COUNT];
@@ -14,8 +13,8 @@ static mutex_t serial_write_mtx;
 
 void debug_print(print_reason reason, char *format, ...) {
 #ifdef __IS_MASTER__
-    mutex_enter_blocking(&serial_write_mtx);
     if (!flags[reason]) return;
+    mutex_enter_blocking(&serial_write_mtx);
     va_list args;
     va_start(args, format);
     vprintf(format, args);
