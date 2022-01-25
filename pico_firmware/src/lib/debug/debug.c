@@ -57,9 +57,9 @@ void init_debug_printing() {
         case 3:
             set_print_flag(PRINT_REASON_USB_EXCHANGES);
             set_print_flag(PRINT_REASON_SPI_MESSAGES);
-            set_print_flag(PRINT_REASON_SETUP_REACTION);
             set_print_flag(PRINT_REASON_SYNC);
         case 2:
+            set_print_flag(PRINT_REASON_SETUP_REACTION);
             set_print_flag(PRINT_REASON_DCD_BUFFER);
             set_print_flag(PRINT_REASON_IRQ);
             set_print_flag(PRINT_REASON_SLAVE_DATA);

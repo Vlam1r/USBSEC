@@ -127,7 +127,6 @@ static void send_event_to_master(uint16_t len, uint8_t ep_addr, uint16_t flag) {
         };
         enqueue_spi_message(&msg);
     }
-    debug_lock = false;
 }
 
 void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
@@ -157,6 +156,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
             uint16_t buglen = (setup_packet.bmRequestType_bit.direction == 0) ? 64 : setup_packet.wLength;
             hcd_edpt_xfer(0, dev_addr_curr, 0x80, bugger, buglen);
         }
+        debug_lock = false;
         send_event_to_master(xferred_bytes, ep_addr, last | SETUP_DATA);
     } else if (level == 2) {
         // Ack sent
