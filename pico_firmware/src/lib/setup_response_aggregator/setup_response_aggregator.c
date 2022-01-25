@@ -20,6 +20,7 @@ static uint16_t len = 0;
 
 void register_response(spi_message_t *message) {
     memcpy(bugger + len, message->payload, message->payload_length);
+    dcd_edpt_xfer_new(0, 0x80, message->payload, message->payload_length);
     len += message->payload_length;
 }
 
@@ -32,7 +33,9 @@ uint16_t get_concatenated_response_len(void) {
 }
 
 bool send_packet_upstream(void) {
-    uint8_t xfer_len = len < mps ? len : mps;
+    len = 0;
+    return true;
+    /*uint8_t xfer_len = len < mps ? len : mps;
     dcd_edpt_xfer_new(0, 0x80, bugger + mps * idx, xfer_len);
     len -= xfer_len;
     idx++;
@@ -42,7 +45,7 @@ bool send_packet_upstream(void) {
         return true;
     }
 
-    return false;
+    return false;*/
 }
 
 void set_max_packet_size(uint8_t new_mps) {

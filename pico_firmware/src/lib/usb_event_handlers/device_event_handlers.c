@@ -142,10 +142,11 @@ static void handle_setup_response() {
     /*
      * Handle endpoints and open them on slave
      */
-    if (((uint8_t *) &setup)[3] == 0x2 && ((uint8_t *) &setup)[6] > 9) { // TODO Harden
+    if (setup.wValue == 0x0200 && setup.wLength > 9) {
         debug_print(PRINT_REASON_SETUP_REACTION, "Started handling endpoints.\n");
         int pos = 0;
         while (pos < len) {
+            debug_print(PRINT_REASON_SETUP_REACTION, "+--\n|Len %d\n|Type 0x%x\n+--", arr[pos], arr[pos + 1]);
             if (arr[pos + 1] == 0x05) {
                 const tusb_desc_endpoint_t *const edpt = (const tusb_desc_endpoint_t *const) &arr[pos];
                 dcd_edpt_open_new(0, edpt);
