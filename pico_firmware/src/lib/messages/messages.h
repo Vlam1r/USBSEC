@@ -47,6 +47,7 @@ typedef enum {
     FIRST_PACKET = 0x0200,
     LAST_PACKET = 0x0400,
     /**/
+    DEBUG_PRINT_AS_STRING = 0x4000,
     DEBUG_PRINT_AS_HEX = 0x8000
 } msg_type;
 
@@ -64,6 +65,8 @@ spi_role get_role(void);
 void enqueue_spi_message(spi_message_t *message);
 
 bool dequeue_spi_message(spi_message_t *message);
+
+void send_string_message(const char *string);
 
 void sync(void);
 

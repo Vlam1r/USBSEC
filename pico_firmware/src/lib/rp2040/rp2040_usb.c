@@ -290,6 +290,10 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
                         ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
         }
 
+        if (ep->user_buf == 0 && xferred_bytes > 0) {
+            gpio_put(GPIO_LED_PIN, 1);
+            panic("");
+        }
         memcpy(ep->user_buf, ep->hw_data_buf + buf_id * 64, xferred_bytes);
         debug_print(PRINT_REASON_DCD_BUFFER, "Received %d bytes on [0x%x]\n", xferred_bytes, ep->ep_addr);
         //spi_send_blocking(ep->user_buf, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);

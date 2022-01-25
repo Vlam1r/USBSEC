@@ -40,6 +40,13 @@ void handle_spi_slave_event(void) {
 
     spi_message_t msg;
     while (dequeue_spi_message(&msg)) {
+
+        if (msg.e_flag == DEBUG_PRINT_AS_STRING) {
+            printf("Slave says: ");
+            printf((char *) msg.payload);
+            break;
+        }
+
         uint8_t ep_addr = msg.payload[--msg.payload_length];
         debug_print(PRINT_REASON_SLAVE_DATA,
                     "[SLAVE DATA] Packet for 0x%x of length %d with flag 0x%x\n",
@@ -154,15 +161,17 @@ static void handle_setup_response() {
                 debug_print(PRINT_REASON_SETUP_REACTION, "New endpoint registered: 0x%x\n", edpt->bEndpointAddress);
                 if (~edpt->bEndpointAddress & 0x80)
                     dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64); // Query OUT edpt
-                else
+                else {
+                    //dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 0); // Query IN edpt
                     other_edpt = edpt->bEndpointAddress;
+                }
 
                 spi_message_t reply = {
                         .payload = (uint8_t *) edpt,
                         .payload_length = edpt->bLength,
                         .e_flag = EDPT_OPEN
                 };
-                enqueue_spi_message(&reply); // TODO ONLY IF INTERRUPT?
+                enqueue_spi_message(&reply);
             }
             pos += arr[pos];
         }

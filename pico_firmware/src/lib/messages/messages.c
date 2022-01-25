@@ -159,6 +159,15 @@ bool dequeue_spi_message(spi_message_t *message) {
     return queue_try_remove(&rx, message);
 }
 
+void send_string_message(const char *string) {
+    spi_message_t msg = {
+            .payload = (uint8_t *) string,
+            .payload_length = strlen(string) + 1,
+            .e_flag = DEBUG_PRINT_AS_STRING
+    };
+    enqueue_spi_message(&msg);
+}
+
 void sync(void) {
     spi_message_t msg;
     int rec_count;
@@ -219,6 +228,10 @@ void fake_spi(void) {
     uint8_t setup5[8] = {0x80, 0x06, 0x00, 0x03, 0x00, 0x00, 0xff, 0x00};
     uint8_t setup6[8] = {0x80, 0x06, 0x01, 0x03, 0x09, 0x04, 0xff, 0x00};
     uint8_t setup7[8] = {0x00, 0x09, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t hid1[8] = {0x21, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t hid2[8] = {0x81, 0x06, 0x00, 0x22, 0x00, 0x00, 0x47, 0x00};
+    uint8_t hid3[8] = {0x21, 0x0a, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
+    uint8_t hid4[8] = {0x81, 0x06, 0x00, 0x22, 0x01, 0x00, 0xd5, 0x00};
     uint8_t mps = 8;
 
     msg.payload = NULL;
@@ -267,5 +280,14 @@ void fake_spi(void) {
     queue_add_with_copy(&rx, &msg);
 
     msg.payload = setup7;
+    queue_add_with_copy(&rx, &msg);
+
+    msg.payload = hid1;
+    queue_add_with_copy(&rx, &msg);
+    msg.payload = hid2;
+    queue_add_with_copy(&rx, &msg);
+    msg.payload = hid3;
+    queue_add_with_copy(&rx, &msg);
+    msg.payload = hid4;
     queue_add_with_copy(&rx, &msg);
 }

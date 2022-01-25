@@ -92,6 +92,11 @@ static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep) {
 static void hw_handle_buff_status(void) {
     uint32_t remaining_buffers = usb_hw->buf_status;
 
+    send_string_message("###### BUFFER #####");
+    if (remaining_buffers & 4) {
+        send_string_message("###### BUFFER 4 #####");
+    }
+
     // Check EPX first
     uint bit = 0b1;
     if (remaining_buffers & bit) {
@@ -368,7 +373,7 @@ bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc) {
     assert(ep);
 
     _hw_endpoint_init(ep,
-                      0,
+                      7,
                       ep_desc->bEndpointAddress,
                       ep_desc->wMaxPacketSize.size,
                       ep_desc->bmAttributes.xfer,

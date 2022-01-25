@@ -48,6 +48,10 @@ void slavework() {
                  * Open sent endpoint
                  */
                 hcd_edpt_open((const tusb_desc_endpoint_t *) message.payload);
+                if (((const tusb_desc_endpoint_t *) message.payload)->bLength)
+                    hcd_edpt_xfer(0, dev_addr,
+                                  ((const tusb_desc_endpoint_t *) message.payload)->bEndpointAddress,
+                                  bugger, 0);
                 break;
 
             case SETUP_DATA:
@@ -149,6 +153,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
         if (result == XFER_RESULT_SUCCESS) {
             level = 2;
             last = LAST_PACKET;
+            debug_lock = false;
             if (setup_packet.bmRequestType_bit.direction == 1) {
                 hcd_edpt_xfer(0, dev_addr_curr, 0x00, NULL, 0); // Request ACK
             }
@@ -156,7 +161,6 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
             uint16_t buglen = (setup_packet.bmRequestType_bit.direction == 0) ? 64 : setup_packet.wLength;
             hcd_edpt_xfer(0, dev_addr_curr, 0x80, bugger, buglen);
         }
-        debug_lock = false;
         send_event_to_master(xferred_bytes, ep_addr, last | SETUP_DATA);
     } else if (level == 2) {
         // Ack sent
