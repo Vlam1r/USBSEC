@@ -99,9 +99,9 @@ static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
     if (!ep->rx) {
         // Copy data from user buffer to hw buffer
         memcpy(ep->hw_data_buf + buf_id * 64, ep->user_buf, buflen);
-        //printf(">>>>>>>>>>>>>>>>>>>>>>\n");
+        //debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
         //debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf + buf_id * 64, buflen);
-        //printf(">>>>>>>>>>>>>>>>>>>>>>\n");
+        //debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
         ep->user_buf += buflen;
 
         // Mark as full
@@ -169,9 +169,9 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     if (!ep->rx) {
         // Copy data from user buffer to hw buffer
         memcpy(ep->hw_data_buf, &ep->user_buf[ep->xferred_len], buflen);
-        //printf(">>>>>>>>>>>>>>>>>>>>>>\n");
+        //debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
         //debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf, buflen);
-        //printf(">>>>>>>>>>>>>>>>>>>>>>\n");
+        //debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
         // Mark as full
         val |= USB_BUF_CTRL_FULL;
     }

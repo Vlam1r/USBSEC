@@ -164,7 +164,7 @@ static void handle_setup_response() {
                 if (~edpt->bEndpointAddress & 0x80)
                     dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64); // Query OUT edpt
                 else {
-                    dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 0); // Query IN edpt
+                    //dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 0); // Query IN edpt
                     other_edpt = edpt->bEndpointAddress;
                 }
 

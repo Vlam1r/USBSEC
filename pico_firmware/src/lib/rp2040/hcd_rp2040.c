@@ -93,10 +93,10 @@ static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep) {
 static void hw_handle_buff_status(void) {
     uint32_t remaining_buffers = usb_hw->buf_status;
 
-    send_string_message("###### BUFFER #####");
+    /*send_string_message("###### BUFFER #####");
     if (remaining_buffers & 4) {
         send_string_message("###### BUFFER 4 #####");
-    }
+    }*/
 
     // Check EPX first
     uint bit = 0b1;
@@ -430,9 +430,9 @@ void hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     (void) rhport;
 
 
-    printf(">>>>>>>>>>>>>>>>>>>>>>\n");
+    debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
     debug_print_array(PRINT_REASON_PREAMBLE, setup_packet, 8);
-    printf(">>>>>>>>>>>>>>>>>>>>>>\n");
+    debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
     // Copy data into setup packet buffer
     memcpy((void *) &usbh_dpram->setup_packet[0], setup_packet, 8);
 
