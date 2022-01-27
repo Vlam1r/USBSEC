@@ -165,7 +165,7 @@ void send_string_message(const char *string) {
             .payload_length = strlen(string) + 1,
             .e_flag = DEBUG_PRINT_AS_STRING
     };
-    enqueue_spi_message(&msg);
+    //enqueue_spi_message(&msg);
 }
 
 void sync(void) {
@@ -252,7 +252,7 @@ void fake_spi(void) {
     msg.payload = &mps;
     msg.payload_length = 1;
     msg.e_flag = 0x40;
-    queue_add_with_copy(&rx, &msg);
+    queue_add_with_copy(&rx, &msg); // Change packet size
 
     msg.payload = setup2;
     msg.payload_length = 8;
@@ -279,6 +279,12 @@ void fake_spi(void) {
     msg.payload = setup6;
     queue_add_with_copy(&rx, &msg);
 
+
+    msg.payload_length = 0;
+    msg.e_flag = 0x20;
+    queue_add_with_copy(&rx, &msg); // Change DEV ADDR
+    msg.payload_length = 8;
+    msg.e_flag = 0x2;
     msg.payload = setup7;
     queue_add_with_copy(&rx, &msg);
 

@@ -8,6 +8,11 @@
 #include <pico/printf.h>
 #include <pico/mutex.h>
 
+/*
+#define __IS_MASTER__
+#define __DEBUG_LEVEL__ 1
+*/
+
 static bool flags[PRINT_REASON_COUNT];
 static mutex_t serial_write_mtx;
 
@@ -35,6 +40,10 @@ static void set_print_flag(print_reason reason) {
 void debug_print_array(print_reason reason, const uint8_t *data, uint32_t len) {
 #ifdef __IS_MASTER__
     if (!flags[reason]) return;
+    if (len == 0) {
+        printf("NULL\n");
+        return;
+    }
 
     mutex_enter_blocking(&serial_write_mtx);
     for (int i = 0; i < len; i++) {

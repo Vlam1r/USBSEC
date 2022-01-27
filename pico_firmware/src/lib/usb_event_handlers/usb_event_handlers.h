@@ -58,23 +58,6 @@ typedef struct hw_endpoint {
     bool partial;
 } hw_endpoint_t;
 
-typedef enum {
-    DCD_EVENT_INVALID = 0,
-    DCD_EVENT_BUS_RESET,
-    DCD_EVENT_UNPLUGGED,
-    DCD_EVENT_SOF,
-    DCD_EVENT_SUSPEND, // TODO LPM Sleep L1 support
-    DCD_EVENT_RESUME,
-
-    DCD_EVENT_SETUP_RECEIVED,
-    DCD_EVENT_XFER_COMPLETE,
-
-    // Not an DCD event, just a convenient way to defer ISR function
-    USBD_EVENT_FUNC_CALL,
-
-    DCD_EVENT_COUNT
-} dcd_eventid_t;
-
 void define_setup_packet(uint8_t *setup);
 
 // Helper to send device attach event
@@ -93,15 +76,11 @@ extern void hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup
 
 void device_event_bus_reset(void);
 
-extern void dcd_event_bus_signal(uint8_t rhport, dcd_eventid_t eid, bool in_isr);
-
 bool dcd_edpt_open_new(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt);
 
 extern hw_endpoint_t *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr);
 
 bool hcd_init(uint8_t rhport);
-
-void hcd_int_enable(uint8_t rhport);
 
 bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc);
 

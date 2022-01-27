@@ -39,6 +39,8 @@ static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
 
 static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 
+uint8_t reserve_bugger[64];
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
@@ -97,8 +99,9 @@ static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
     if (!ep->rx) {
         // Copy data from user buffer to hw buffer
         memcpy(ep->hw_data_buf + buf_id * 64, ep->user_buf, buflen);
-        //debug_print(PRINT_REASON_USB_EXCHANGES, "[BUFFER] Sending %d data to ep 0x%x\n", buflen, ep->ep_addr);
-        //debug_print_array(PRINT_REASON_USB_EXCHANGES, ep->user_buf, buflen);
+        //printf(">>>>>>>>>>>>>>>>>>>>>>\n");
+        //debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf + buf_id * 64, buflen);
+        //printf(">>>>>>>>>>>>>>>>>>>>>>\n");
         ep->user_buf += buflen;
 
         // Mark as full
@@ -166,6 +169,9 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     if (!ep->rx) {
         // Copy data from user buffer to hw buffer
         memcpy(ep->hw_data_buf, &ep->user_buf[ep->xferred_len], buflen);
+        //printf(">>>>>>>>>>>>>>>>>>>>>>\n");
+        //debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf, buflen);
+        //printf(">>>>>>>>>>>>>>>>>>>>>>\n");
         // Mark as full
         val |= USB_BUF_CTRL_FULL;
     }
@@ -292,8 +298,13 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
 
         if (ep->user_buf == 0 && xferred_bytes > 0) {
             gpio_put(GPIO_LED_PIN, 1);
-            panic("");
+            ep->active = true;
+            ep->user_buf = reserve_bugger;
+            //panic("");
         }
+        //printf("<<<<<<<<<<<<<<<<<<<<<<\n");
+        //debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf + buf_id * 64, xferred_bytes);
+        //printf("<<<<<<<<<<<<<<<<<<<<<<\n");
         memcpy(ep->user_buf, ep->hw_data_buf + buf_id * 64, xferred_bytes);
         debug_print(PRINT_REASON_DCD_BUFFER, "Received %d bytes on [0x%x]\n", xferred_bytes, ep->ep_addr);
         //spi_send_blocking(ep->user_buf, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
@@ -313,21 +324,6 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
     return xferred_bytes;
 }
 
-static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep) {
-    // Update hw endpoint struct with info from hardware
-    // after a buff status interrupt
-
-    // always sync buffer 0
-    sync_ep_buffer(ep, 0);
-
-    // sync buffer 1 if double buffered
-    if ((*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS) {
-
-        gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        panic("Double buffering unsupported");
-    }
-}
-
 // Returns true if transfer is complete
 bool hw_endpoint_xfer_continue(struct hw_endpoint *ep) {
     _hw_endpoint_lock_update(ep, 1);
@@ -340,11 +336,15 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep) {
       panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
     }*/
 
-    // Update EP struct from hardware state
-    _hw_endpoint_xfer_sync(ep);
+    // always sync buffer 0
+    sync_ep_buffer(ep, 0);
 
-    // Now we have synced our state with the hardware. Is there more data to transfer?
-    // If we are done then notify tinyusb
+    // sync buffer 1 if double buffered
+    if ((*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS) {
+
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        panic("Double buffering unsupported");
+    }
 
     //spi_send_blocking(&len, 1, USB_DATA | DEBUG_PRINT_AS_HEX);
     if (ep->remaining_len == 0) {

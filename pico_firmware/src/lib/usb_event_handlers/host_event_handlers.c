@@ -48,10 +48,12 @@ void slavework() {
                  * Open sent endpoint
                  */
                 hcd_edpt_open((const tusb_desc_endpoint_t *) message.payload);
-                if (((const tusb_desc_endpoint_t *) message.payload)->bLength)
+                /*if (message.payload[6] > 0) {
+                    send_string_message("########OPENING EDPT##########\n\n");
                     hcd_edpt_xfer(0, dev_addr,
                                   ((const tusb_desc_endpoint_t *) message.payload)->bEndpointAddress,
-                                  bugger, 0);
+                                  bugger, 8);
+                }*/
                 break;
 
             case SETUP_DATA:
@@ -81,6 +83,8 @@ void slavework() {
                 /*
                  * Change device address to 7 (CHG_ADDR_SETUP.wValue)
                  */
+
+                debug_lock = true;
                 define_setup_packet((uint8_t *) &CHG_ADDR_SETUP);
                 level = 0;
                 hcd_setup_send(0, dev_addr, (const uint8_t *) &setup_packet);
@@ -172,6 +176,6 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
         if (result == 0) new_flag |= LAST_PACKET;
         if (result == 4) new_flag |= FIRST_PACKET;
         send_event_to_master(xferred_bytes, ep_addr, new_flag);
-        //Problematic as xferred bytes is unbounded here.
+        //Problematic as xferred bytes is unbounded here. todo is it?
     }
 }

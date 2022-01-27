@@ -44,7 +44,9 @@ void handle_spi_slave_event(void) {
         if (msg.e_flag == DEBUG_PRINT_AS_STRING) {
             printf("Slave says: ");
             printf((char *) msg.payload);
-            break;
+            printf("\n");
+            free(msg.payload);
+            continue;
         }
 
         uint8_t ep_addr = msg.payload[--msg.payload_length];
@@ -162,14 +164,14 @@ static void handle_setup_response() {
                 if (~edpt->bEndpointAddress & 0x80)
                     dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64); // Query OUT edpt
                 else {
-                    //dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 0); // Query IN edpt
+                    dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 0); // Query IN edpt
                     other_edpt = edpt->bEndpointAddress;
                 }
 
                 spi_message_t reply = {
                         .payload = (uint8_t *) edpt,
                         .payload_length = edpt->bLength,
-                        .e_flag = EDPT_OPEN
+                        .e_flag = EDPT_OPEN | DEBUG_PRINT_AS_HEX
                 };
                 enqueue_spi_message(&reply);
             }

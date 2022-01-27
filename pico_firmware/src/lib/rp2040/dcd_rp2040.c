@@ -170,7 +170,7 @@ static void hw_handle_buff_status(void) {
         if (remaining_buffers & bit) {
             hw_handle_buff_status_bit(remaining_buffers, i);
 
-            remaining_buffers &= ~4u; // TODO Harden
+            remaining_buffers &= ~4u; // TODO Harden or is this needed
         }
     }
 
