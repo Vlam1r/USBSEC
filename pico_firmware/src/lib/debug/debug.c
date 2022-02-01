@@ -67,14 +67,14 @@ void init_debug_printing() {
             set_print_flag(PRINT_REASON_USB_EXCHANGES);
             set_print_flag(PRINT_REASON_SYNC);
             set_print_flag(PRINT_REASON_DCD_BUFFER);
+            set_print_flag(PRINT_REASON_PREAMBLE);
         case 2:
-            set_print_flag(PRINT_REASON_SPI_MESSAGES);
             set_print_flag(PRINT_REASON_SETUP_REACTION);
             set_print_flag(PRINT_REASON_IRQ);
             set_print_flag(PRINT_REASON_SLAVE_DATA);
             set_print_flag(PRINT_REASON_XFER_COMPLETE);
         case 1:
-            set_print_flag(PRINT_REASON_PREAMBLE);
+            set_print_flag(PRINT_REASON_SPI_MESSAGES);
         case 0:
         default:
             break;

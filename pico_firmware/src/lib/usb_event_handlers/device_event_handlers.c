@@ -13,6 +13,7 @@ static uint8_t bugger[1000];
 bool permit_0x81 = false;
 int count0x81 = 0;
 uint8_t other_edpt;
+uint8_t bMaxPacketSize = 64;
 
 tusb_control_request_t setup;
 static enum {
@@ -25,6 +26,27 @@ static enum {
  */
 
 static void handle_setup_response();
+
+static void knock_on_slave_edpt(uint8_t edpt) {
+    memset(bugger, 0, bMaxPacketSize);
+    bugger[bMaxPacketSize] = edpt;
+    spi_message_t reply = {
+            .payload = bugger,
+            .payload_length = bMaxPacketSize + 1,
+            .e_flag = USB_DATA | DEBUG_PRINT_AS_HEX
+    };
+    debug_print_array(PRINT_REASON_XFER_COMPLETE, bugger, bMaxPacketSize + 1);
+    enqueue_spi_message(&reply); // TODO Optimize sending of empty bits
+}
+
+static void send_empty_message() {
+    static const spi_message_t dummy = {
+            .payload = NULL,
+            .payload_length = 0,
+            .e_flag = 0
+    };
+    //enqueue_spi_message(&dummy);
+}
 
 void handle_spi_slave_event(void) {
     if (setup_response_dir == WRITING_RESPONSE) {
@@ -64,32 +86,28 @@ void handle_spi_slave_event(void) {
                 }
             }
 
-        } else if (~ep_addr & 0x80) {
-            /*
-             * OUT endpoint
-             */
-            memset(bugger, 0, 64);
-            bugger[64] = other_edpt; // TODO
-            debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Sent to 0x%x.\n", other_edpt);
-            spi_message_t reply = {
-                    .payload = bugger,
-                    .payload_length = 64 + 1,
-                    .e_flag = USB_DATA
-            };
-            enqueue_spi_message(&reply); // TODO Optimize sending of 64 bits
-
-            dcd_edpt_xfer_new(0, ep_addr, bugger, 64);
-            debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Listening to port 0x%x\n", ep_addr);
         } else {
-            /*
-             * IN endpoint
-             */
-            permit_0x81 = true;
-            count0x81++;
-            debug_print(PRINT_REASON_USB_EXCHANGES, "+++++ STARTING PARTIAL XFER ON %d++++\n", ep_addr);
-            dcd_edpt_xfer_partial(ep_addr, msg.payload, msg.payload_length, msg.e_flag);
+            panic("");
+            if (~ep_addr & 0x80) {
+                /*
+                 * OUT endpoint
+                 */
+
+                debug_print(PRINT_REASON_XFER_COMPLETE, "[XFER COMPLETE] Sent to 0x%x.\n", other_edpt);
+                knock_on_slave_edpt(other_edpt); // TODO other_edpt
+                dcd_edpt_xfer_new(0, ep_addr, bugger, bMaxPacketSize);
+                debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Listening to port 0x%x\n", ep_addr);
+            } else {
+                /*
+                 * IN endpoint
+                 */
+                permit_0x81 = true;
+                count0x81++;
+                debug_print(PRINT_REASON_USB_EXCHANGES, "+++++ STARTING PARTIAL XFER ON %d++++\n", ep_addr);
+                dcd_edpt_xfer_partial(ep_addr, msg.payload, msg.payload_length, msg.e_flag);
+            }
+            free(msg.payload);
         }
-        free(msg.payload);
     }
     //debug_print(PRINT_REASON_SLAVE_DATA, "[SLAVE DATA] Done.\n");
 }
@@ -97,6 +115,9 @@ void handle_spi_slave_event(void) {
 void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool in_isr) {
     while (!gpio_get(GPIO_SLAVE_DEVICE_ATTACHED_PIN)) tight_loop_contents();
     memcpy(&setup, p_setup, sizeof setup);
+    debug_print(PRINT_REASON_PREAMBLE, "<<<<<<<<<<<<<<<<<<<<<<\n");
+    debug_print_array(PRINT_REASON_PREAMBLE, (const uint8_t *) &setup, 8);
+    debug_print(PRINT_REASON_PREAMBLE, "<<<<<<<<<<<<<<<<<<<<<<\n");
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Received new setup.\n");
 
     if (setup.bRequest == 0x5 /*SET ADDRESS*/) {
@@ -113,6 +134,14 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool i
         return;
     }
 
+    if (setup.bRequest == 0x6 && setup.wValue == 0x0600 /* DEVICE QUALIFIER */) {
+        /*
+         * Currently ignoring this request as it causes stalls downstream.
+         */
+        dcd_edpt_xfer_new(0, 0x80, 0, 0);
+        return;
+    }
+
     /*
      * Forward setup packet to slave and get response from device
      */
@@ -121,6 +150,8 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool i
             .payload = (uint8_t *) &setup,
             .e_flag = SETUP_DATA | DEBUG_PRINT_AS_HEX
     };
+    send_empty_message();
+    send_empty_message();
     enqueue_spi_message(&msg);
 }
 
@@ -131,13 +162,14 @@ static void handle_setup_response() {
     /*
      * Set correct maxPacketSize on slave
      */
-    if (setup.bRequest == 0x6 && setup.wValue == 0x100) {
+    if (setup.bRequest == 0x6 && setup.wValue == 0x100 /*DEVICE*/) {
         spi_message_t reply = {
                 .payload_length = 1,
                 .payload = &arr[7],
                 .e_flag = CHG_EPX_PACKETSIZE | DEBUG_PRINT_AS_HEX
         };
         enqueue_spi_message(&reply);
+        bMaxPacketSize = arr[7];
         set_max_packet_size(arr[7]);
     }
 
@@ -164,7 +196,11 @@ static void handle_setup_response() {
                 if (~edpt->bEndpointAddress & 0x80)
                     dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64); // Query OUT edpt
                 else {
-                    //dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 0); // Query IN edpt
+                    if (true) {
+                        //todo
+                        memset(bugger, 0, bMaxPacketSize);
+                        //dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, bMaxPacketSize);
+                    }
                     other_edpt = edpt->bEndpointAddress;
                 }
 
@@ -173,6 +209,7 @@ static void handle_setup_response() {
                         .payload_length = edpt->bLength,
                         .e_flag = EDPT_OPEN | DEBUG_PRINT_AS_HEX
                 };
+                send_empty_message();
                 enqueue_spi_message(&reply);
             }
             pos += arr[pos];
@@ -183,13 +220,24 @@ static void handle_setup_response() {
         debug_print(PRINT_REASON_SETUP_REACTION, "Configuration confirmed.\n");
     }
 
+    /*
+     * Setting up interrupt finished. Need to request a read
+     */
+    if (setup.wValue == 0x2200 /* REQUEST HID REPORT*/ && setup.wIndex == 0x01) {
+        //printf("KNOCK KNOCK }:(");
+        //busy_wait_ms(1000);
+        send_empty_message();
+        send_empty_message();
+        knock_on_slave_edpt(setup.wIndex + 0x80);
+    }
+
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Setup handling ended.\n");
 
 }
 
 void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr) {
 
-    if (((tusb_control_request_t *) usb_dpram->setup_packet)->bRequest == 0x5 /*SET ADDRESS*/ && ep_addr == 0x80) {
+    if (setup.bRequest == 0x5 /*SET ADDRESS*/ && ep_addr == 0x80) {
         debug_print(PRINT_REASON_SETUP_REACTION,
                     "Setting address to %d, [%d] %d\n",
                     ((const tusb_control_request_t *) usb_dpram->setup_packet)->wValue,
@@ -203,7 +251,9 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
     debug_print(PRINT_REASON_XFER_COMPLETE,
                 "[XFER COMPLETE] Completed transfer on 0x%x with %d bytes\n",
                 ep_addr, xferred_bytes);
-
+    //busy_wait_ms(5000);
+    dcd_edpt_xfer_new(0, ep_addr, bugger, bMaxPacketSize);
+    return;
     uint8_t arr[100];
     if (~ep_addr & 0x80) {
         permit_0x81 = false;

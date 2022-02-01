@@ -32,13 +32,13 @@ void slavework() {
     spi_message_t message;
     if (debug_lock) return;
     if (dequeue_spi_message(&message)) {
-
         switch (message.e_flag & ~DEBUG_PRINT_AS_HEX) {
 
             case RESET_USB:
                 /*
                  * Reset USB device
                  */
+                send_string_message("RESET_USB");
                 dev_addr = 0; // TODO is this needed?
                 usb_hw->sie_ctrl |= USB_SIE_CTRL_RESET_BUS_BITS;
                 break;
@@ -47,6 +47,7 @@ void slavework() {
                 /*
                  * Open sent endpoint
                  */
+                send_string_message("EDPT_OPEN");
                 hcd_edpt_open((const tusb_desc_endpoint_t *) message.payload);
                 /*if (message.payload[6] > 0) {
                     send_string_message("########OPENING EDPT##########\n\n");
@@ -60,6 +61,7 @@ void slavework() {
                 /*
                  * Data is copied into setup
                  */
+                send_string_message("SETUP_DATA");
                 debug_lock = true;
                 define_setup_packet(message.payload);
                 level = 0;
@@ -71,6 +73,8 @@ void slavework() {
                  * Data is copied into buffer
                  */
                 level = 3;
+                //debug_lock = true;
+                send_string_message("USB_DATA");
                 memcpy(bugger, message.payload, message.payload_length - 1);
                 hcd_edpt_xfer(0,
                               dev_addr,
@@ -83,7 +87,7 @@ void slavework() {
                 /*
                  * Change device address to 7 (CHG_ADDR_SETUP.wValue)
                  */
-
+                send_string_message("CHG_ADDR");
                 debug_lock = true;
                 define_setup_packet((uint8_t *) &CHG_ADDR_SETUP);
                 level = 0;
@@ -97,10 +101,12 @@ void slavework() {
                  * This is only needed for EPX as packet size will be set correctly for other endpoints
                  * at open time
                  */
+                send_string_message("CHG_PCKSZ");
                 assert(message.payload_length == 1);
                 change_epx_packetsize(message.payload[0]);
                 break;
-
+            case 0:
+                break;
             default:
                 gpio_put(GPIO_LED_PIN, 1);
                 panic("Invalid message from master!");
@@ -139,6 +145,7 @@ static void send_event_to_master(uint16_t len, uint8_t ep_addr, uint16_t flag) {
 
 void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
     assert(result == 0 || result == 4);
+    send_string_message("HCD XFER COMPLETE");
     if (level == 0) {
         /*
          * Setup packet is sent to device. Now need to read data.
@@ -172,10 +179,12 @@ void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xf
         /*
          * Non-control transfer
          */
+        send_string_message("AAHAAHAH");
+        debug_lock = false;
         uint16_t new_flag = 0;
         if (result == 0) new_flag |= LAST_PACKET;
         if (result == 4) new_flag |= FIRST_PACKET;
         send_event_to_master(xferred_bytes, ep_addr, new_flag);
-        //Problematic as xferred bytes is unbounded here. todo is it?
+        //Problematic as xferred bytes is unbounded here. todo or is it?
     }
 }

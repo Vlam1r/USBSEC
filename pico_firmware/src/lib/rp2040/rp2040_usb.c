@@ -99,9 +99,9 @@ static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
     if (!ep->rx) {
         // Copy data from user buffer to hw buffer
         memcpy(ep->hw_data_buf + buf_id * 64, ep->user_buf, buflen);
-        //debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
-        //debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf + buf_id * 64, buflen);
-        //debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
+        debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
+        debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf + buf_id * 64, buflen);
+        debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
         ep->user_buf += buflen;
 
         // Mark as full
@@ -134,7 +134,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
 // host could send < 64 bytes and cause short packet on buffer0
 // NOTE this could happen to Host mode IN endpoint
         bool const force_single =
-                !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
+                !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS);
 
         if (ep->remaining_len && !force_single) {
 // Use buffer 1 (double buffered) if there is still data
@@ -169,9 +169,9 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     if (!ep->rx) {
         // Copy data from user buffer to hw buffer
         memcpy(ep->hw_data_buf, &ep->user_buf[ep->xferred_len], buflen);
-        //debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
-        //debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf, buflen);
-        //debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
+        debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
+        debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf, buflen);
+        debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
         // Mark as full
         val |= USB_BUF_CTRL_FULL;
     }
@@ -297,14 +297,15 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
         }
 
         if (ep->user_buf == 0 && xferred_bytes > 0) {
+            send_string_message("WHAT IS GOING ON?");
             gpio_put(GPIO_LED_PIN, 1);
             ep->active = true;
             ep->user_buf = reserve_bugger;
             //panic("");
         }
-        //printf("<<<<<<<<<<<<<<<<<<<<<<\n");
-        //debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf + buf_id * 64, xferred_bytes);
-        //printf("<<<<<<<<<<<<<<<<<<<<<<\n");
+        debug_print(PRINT_REASON_PREAMBLE, "<<<<<<<<<<<<<<<<<<<<<<\n");
+        debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf + buf_id * 64, xferred_bytes);
+        debug_print(PRINT_REASON_PREAMBLE, "<<<<<<<<<<<<<<<<<<<<<<\n");
         memcpy(ep->user_buf, ep->hw_data_buf + buf_id * 64, xferred_bytes);
         debug_print(PRINT_REASON_DCD_BUFFER, "Received %d bytes on [0x%x]\n", xferred_bytes, ep->ep_addr);
         //spi_send_blocking(ep->user_buf, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);

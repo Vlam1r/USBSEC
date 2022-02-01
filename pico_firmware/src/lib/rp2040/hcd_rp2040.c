@@ -182,6 +182,7 @@ void hcd_rp2040_irq_new(void) {
         gpio_init(5);
         gpio_set_dir(5, GPIO_OUT);
         gpio_put(5, 1);
+        send_string_message("STALL_NAK PANIC ATTACK");
         panic("");
         hw_xfer_complete(&epx, XFER_RESULT_FAILED);
     }
@@ -194,6 +195,7 @@ void hcd_rp2040_irq_new(void) {
         gpio_init(6);
         gpio_set_dir(6, GPIO_OUT);
         gpio_put(6, 1);
+        send_string_message("STALL PANIC ATTACK");
         panic("");
         hw_xfer_complete(&epx, XFER_RESULT_STALLED);
     }
@@ -215,12 +217,14 @@ void hcd_rp2040_irq_new(void) {
         gpio_init(4);
         gpio_set_dir(4, GPIO_OUT);
         gpio_put(4, 1);
+        send_string_message("DATA SEQ PANIC ATTACK");
         panic("Data Seq Error \n");
     }
 
     if (status ^ handled) {
         //spi_send_string("---UNHANDLED---");
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        send_string_message("UNHANDLED PANIC ATTACK");
         panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
     }
 }
@@ -299,6 +303,7 @@ _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uin
     ep->configured = true;
 
     if (bmInterval) {
+        send_string_message("init interrupt");
         // This is an interrupt endpoint
         // so need to set up interrupt endpoint address control register with:
         // device address
@@ -392,14 +397,21 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     // Get appropriate ep. Either EPX or interrupt endpoint
 
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+    if (!ep) {
+        gpio_put(GPIO_LED_PIN, 1);
+    }
     assert(ep);
 
     active_ep = ep;
 
+    if (ep->ep_addr == 0x81) {
+        send_string_message("Sending to 0x81 :)");
+    }
+
     // Control endpoint can change direction 0x00 <-> 0x80
     if (ep_addr != ep->ep_addr /* && ep_num == 0*/) {
         //assert(ep_num == 0);
-
+        send_string_message("DIRFLIP");
         // Direction has flipped on endpoint control so re init it but with same properties
         _hw_endpoint_init(ep, dev_addr, ep_addr, ep->wMaxPacketSize, ep->transfer_type, 0);
     }
@@ -407,7 +419,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     // If a normal transfer (non-interrupt) then initiate using
     // sie ctrl registers. Otherwise interrupt ep registers should
     // already be configured
-    if (ep->interrupt_num == 255/*todo || true*/) {
+    if (ep->interrupt_num == 255 || true) {
         hw_endpoint_xfer_start(ep, buffer, buflen);
 
         // That has set up buffer control, endpoint control etc
