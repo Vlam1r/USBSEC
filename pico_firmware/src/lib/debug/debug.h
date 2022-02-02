@@ -24,10 +24,14 @@ typedef enum {
     PRINT_REASON_COUNT
 } print_reason;
 
-void debug_print(print_reason reason, char *format, ...);
+void __printflike(2, 0) debug_print(print_reason reason, char *format, ...);
 
 void debug_print_array(print_reason reason, const uint8_t *data, uint32_t len);
 
 void init_debug_printing(void);
+
+#define runtime_assert(__e) do { if(!(__e)) { gpio_put(25, 1); assert(__e); } } while(0)
+
+void __attribute ((noreturn)) __printflike(1, 0) error(const char *fmt, ...);
 
 #endif //PICO_FIRMWARE_DEBUG_H

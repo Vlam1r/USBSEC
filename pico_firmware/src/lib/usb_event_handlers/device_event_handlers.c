@@ -45,7 +45,7 @@ static void send_empty_message() {
             .payload_length = 0,
             .e_flag = 0
     };
-    //enqueue_spi_message(&dummy);
+    enqueue_spi_message(&dummy);
 }
 
 void handle_spi_slave_event(void) {
@@ -61,21 +61,24 @@ void handle_spi_slave_event(void) {
     }
 
     spi_message_t msg;
-    while (dequeue_spi_message(&msg)) {
+    if (dequeue_spi_message(&msg)) {
 
-        if (msg.e_flag == DEBUG_PRINT_AS_STRING) {
+        while (msg.e_flag == DEBUG_PRINT_AS_STRING) {
             printf("Slave says: ");
             printf((char *) msg.payload);
             printf("\n");
             free(msg.payload);
-            continue;
+            if (!dequeue_spi_message(&msg)) {
+                return;
+            }
+
         }
 
         uint8_t ep_addr = msg.payload[--msg.payload_length];
         debug_print(PRINT_REASON_SLAVE_DATA,
                     "[SLAVE DATA] Packet for 0x%x of length %d with flag 0x%x\n",
                     ep_addr, msg.payload_length, msg.e_flag);
-        assert(msg.e_flag & IS_PACKET);
+        runtime_assert(msg.e_flag & IS_PACKET);
         if (msg.e_flag & SETUP_DATA) {
             register_response(&msg);
             if (msg.e_flag & LAST_PACKET) {
@@ -87,7 +90,7 @@ void handle_spi_slave_event(void) {
             }
 
         } else {
-            panic("");
+            error("");
             if (~ep_addr & 0x80) {
                 /*
                  * OUT endpoint
@@ -115,10 +118,8 @@ void handle_spi_slave_event(void) {
 void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool in_isr) {
     while (!gpio_get(GPIO_SLAVE_DEVICE_ATTACHED_PIN)) tight_loop_contents();
     memcpy(&setup, p_setup, sizeof setup);
-    debug_print(PRINT_REASON_PREAMBLE, "<<<<<<<<<<<<<<<<<<<<<<\n");
-    debug_print_array(PRINT_REASON_PREAMBLE, (const uint8_t *) &setup, 8);
-    debug_print(PRINT_REASON_PREAMBLE, "<<<<<<<<<<<<<<<<<<<<<<\n");
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Received new setup.\n");
+    debug_print_array(PRINT_REASON_SETUP_REACTION, (const uint8_t *) &setup, 8);
 
     if (setup.bRequest == 0x5 /*SET ADDRESS*/) {
         /*
@@ -150,8 +151,6 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool i
             .payload = (uint8_t *) &setup,
             .e_flag = SETUP_DATA | DEBUG_PRINT_AS_HEX
     };
-    send_empty_message();
-    send_empty_message();
     enqueue_spi_message(&msg);
 }
 
@@ -159,6 +158,8 @@ static void handle_setup_response() {
     uint8_t *arr = get_concatenated_response();
     uint16_t len = get_concatenated_response_len();
 
+    debug_print(PRINT_REASON_SETUP_REACTION, "Received setup response.\n");
+    debug_print_array(PRINT_REASON_SETUP_REACTION, arr, len);
     /*
      * Set correct maxPacketSize on slave
      */
@@ -196,11 +197,6 @@ static void handle_setup_response() {
                 if (~edpt->bEndpointAddress & 0x80)
                     dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, 64); // Query OUT edpt
                 else {
-                    if (true) {
-                        //todo
-                        memset(bugger, 0, bMaxPacketSize);
-                        //dcd_edpt_xfer_new(0, edpt->bEndpointAddress, bugger, bMaxPacketSize);
-                    }
                     other_edpt = edpt->bEndpointAddress;
                 }
 
@@ -209,7 +205,7 @@ static void handle_setup_response() {
                         .payload_length = edpt->bLength,
                         .e_flag = EDPT_OPEN | DEBUG_PRINT_AS_HEX
                 };
-                send_empty_message();
+                //send_empty_message();
                 enqueue_spi_message(&reply);
             }
             pos += arr[pos];
@@ -224,9 +220,9 @@ static void handle_setup_response() {
      * Setting up interrupt finished. Need to request a read
      */
     if (setup.wValue == 0x2200 /* REQUEST HID REPORT*/ && setup.wIndex == 0x01) {
-        //printf("KNOCK KNOCK }:(");
+        printf("KNOCK KNOCK }:(");
         //busy_wait_ms(1000);
-        send_empty_message();
+        //send_empty_message();
         send_empty_message();
         knock_on_slave_edpt(setup.wIndex + 0x80);
     }
@@ -252,7 +248,7 @@ void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferr
                 "[XFER COMPLETE] Completed transfer on 0x%x with %d bytes\n",
                 ep_addr, xferred_bytes);
     //busy_wait_ms(5000);
-    dcd_edpt_xfer_new(0, ep_addr, bugger, bMaxPacketSize);
+    //dcd_edpt_xfer_new(0, ep_addr, bugger, bMaxPacketSize);
     return;
     uint8_t arr[100];
     if (~ep_addr & 0x80) {

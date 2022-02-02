@@ -122,7 +122,7 @@ static void hw_handle_buff_status(void) {
 
     if (remaining_buffers) {
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        panic("Unhandled buffer %d\n", remaining_buffers);
+        error("Unhandled buffer %d\n", remaining_buffers);
     }
 }
 
@@ -183,7 +183,7 @@ void hcd_rp2040_irq_new(void) {
         gpio_set_dir(5, GPIO_OUT);
         gpio_put(5, 1);
         send_string_message("STALL_NAK PANIC ATTACK");
-        panic("");
+        error("");
         hw_xfer_complete(&epx, XFER_RESULT_FAILED);
     }
 
@@ -196,7 +196,7 @@ void hcd_rp2040_irq_new(void) {
         gpio_set_dir(6, GPIO_OUT);
         gpio_put(6, 1);
         send_string_message("STALL PANIC ATTACK");
-        panic("");
+        error("");
         hw_xfer_complete(&epx, XFER_RESULT_STALLED);
     }
 
@@ -218,14 +218,14 @@ void hcd_rp2040_irq_new(void) {
         gpio_set_dir(4, GPIO_OUT);
         gpio_put(4, 1);
         send_string_message("DATA SEQ PANIC ATTACK");
-        panic("Data Seq Error \n");
+        error("Data Seq Error \n");
     }
 
     if (status ^ handled) {
         //spi_send_string("---UNHANDLED---");
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
         send_string_message("UNHANDLED PANIC ATTACK");
-        panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
+        error("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
     }
 }
 
@@ -247,7 +247,7 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type, uint8_t 
 
     if (transfer_type == TUSB_XFER_INTERRUPT) {
         ep = _next_free_interrupt_ep();
-        assert(ep);
+        runtime_assert(ep);
         ep->buffer_control = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
         ep->endpoint_control = &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
         // 0 for epx (double buffered): TODO increase to 1024 for ISO
@@ -257,7 +257,7 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type, uint8_t 
         ep->hw_data_buf = &usbh_dpram->epx_data[64 * (ep->interrupt_num + 2)];
     } else {
         ep = (ep_addr == 0) ? &epx : _next_free_interrupt_ep();
-        assert(ep);
+        runtime_assert(ep);
         ep->interrupt_num = 255; // To signal that this is NOT an interrupt endpoint
         ep->buffer_control = &usbh_dpram->epx_buf_ctrl;
         ep->endpoint_control = &usbh_dpram->epx_ctrl;
@@ -271,9 +271,9 @@ static void
 _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uint wMaxPacketSize, uint8_t transfer_type,
                   uint8_t bmInterval) {
     // Already has data buffer, endpoint control, and buffer control allocated at this point
-    assert(ep->endpoint_control);
-    assert(ep->buffer_control);
-    assert(ep->hw_data_buf);
+    runtime_assert(ep->endpoint_control);
+    runtime_assert(ep->buffer_control);
+    runtime_assert(ep->hw_data_buf);
 
     uint8_t const num = tu_edpt_number(ep_addr);
     tusb_dir_t const dir = tu_edpt_dir(ep_addr);
@@ -291,7 +291,7 @@ _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uin
 
     uint dpram_offset = hw_data_offset(ep->hw_data_buf);
     // Bits 0-5 should be 0
-    assert(!(dpram_offset & 0b111111));
+    runtime_assert(!(dpram_offset & 0b111111));
 
     // Fill in endpoint control register with buffer offset
     uint32_t ep_reg = EP_CTRL_ENABLE_BITS
@@ -312,7 +312,7 @@ _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uin
         uint32_t reg = dev_addr | (num << USB_ADDR_ENDP1_ENDPOINT_LSB);
         // Assert the interrupt endpoint is IN_TO_HOST
         // TODO Interrupt can also be OUT
-        assert(dir == TUSB_DIR_IN);
+        runtime_assert(dir == TUSB_DIR_IN);
 
         if (need_pre(dev_addr)) {
             reg |= USB_ADDR_ENDP1_INTEP_PREAMBLE_BITS;
@@ -331,7 +331,7 @@ _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uin
 // HCD API
 //--------------------------------------------------------------------+
 bool hcd_init(uint8_t rhport) {
-    assert(rhport == 0);
+    runtime_assert(rhport == 0);
 
     // Reset any previous state
     rp2040_usb_init();
@@ -358,13 +358,13 @@ bool hcd_init(uint8_t rhport) {
 }
 
 void hcd_int_enable(uint8_t rhport) {
-    assert(rhport == 0);
+    runtime_assert(rhport == 0);
     irq_set_enabled(USBCTRL_IRQ, true);
 }
 
 void hcd_int_disable(uint8_t rhport) {
     // todo we should check this is disabling from the correct core; note currently this is never called
-    assert(rhport == 0);
+    runtime_assert(rhport == 0);
     irq_set_enabled(USBCTRL_IRQ, false);
 }
 
@@ -376,7 +376,7 @@ bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc) {
 
     // Allocated differently based on if it's an interrupt endpoint or not
     struct hw_endpoint *ep = _hw_endpoint_allocate(ep_desc->bmAttributes.xfer, ep_desc->bEndpointAddress);
-    assert(ep);
+    runtime_assert(ep);
 
     _hw_endpoint_init(ep,
                       0, //unused
@@ -397,16 +397,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     // Get appropriate ep. Either EPX or interrupt endpoint
 
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
-    if (!ep) {
-        gpio_put(GPIO_LED_PIN, 1);
-    }
-    assert(ep);
+    runtime_assert(ep);
 
     active_ep = ep;
-
-    if (ep->ep_addr == 0x81) {
-        send_string_message("Sending to 0x81 :)");
-    }
 
     // Control endpoint can change direction 0x00 <-> 0x80
     if (ep_addr != ep->ep_addr /* && ep_num == 0*/) {
@@ -453,7 +446,7 @@ void hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
     // EP0 out
     _hw_endpoint_init(ep, dev_addr, 0x00, ep->wMaxPacketSize, 0, 0);
-    assert(ep->configured);
+    runtime_assert(ep->configured);
     active_ep = ep;
 
     ep->remaining_len = 8;

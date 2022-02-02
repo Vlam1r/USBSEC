@@ -58,8 +58,8 @@ int main() {
         hcd_init(0);
     }
 
-    multicore_launch_core1(core1_loop);
-    //fake_spi();
+    //multicore_launch_core1(core1_loop);
+    fake_spi();
     core0_loop();
 }
 

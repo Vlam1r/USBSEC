@@ -7,6 +7,7 @@
 #include "debug.h"
 #include <pico/printf.h>
 #include <pico/mutex.h>
+#include <hardware/gpio.h>
 
 /*
 #define __IS_MASTER__
@@ -69,15 +70,25 @@ void init_debug_printing() {
             set_print_flag(PRINT_REASON_DCD_BUFFER);
             set_print_flag(PRINT_REASON_PREAMBLE);
         case 2:
-            set_print_flag(PRINT_REASON_SETUP_REACTION);
             set_print_flag(PRINT_REASON_IRQ);
             set_print_flag(PRINT_REASON_SLAVE_DATA);
             set_print_flag(PRINT_REASON_XFER_COMPLETE);
-        case 1:
             set_print_flag(PRINT_REASON_SPI_MESSAGES);
+        case 1:
+            set_print_flag(PRINT_REASON_SETUP_REACTION);
         case 0:
         default:
             break;
     }
 #endif
+}
+
+void error(const char *fmt, ...) {
+    /*gpio_put(25, 1);
+    puts("\n*** ERROR ***\n");
+    va_list argptr;
+    va_start(argptr, fmt);
+    vprintf(fmt, argptr);
+    va_end(argptr);*/
+    panic("");
 }

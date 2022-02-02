@@ -6,6 +6,7 @@
 
 #include <malloc.h>
 #include "usb_event_handlers.h"
+#include "../debug/debug.h"
 
 /*
  * Host events
@@ -102,14 +103,14 @@ void slavework() {
                  * at open time
                  */
                 send_string_message("CHG_PCKSZ");
-                assert(message.payload_length == 1);
+                runtime_assert(message.payload_length == 1);
                 change_epx_packetsize(message.payload[0]);
                 break;
             case 0:
                 break;
             default:
                 gpio_put(GPIO_LED_PIN, 1);
-                panic("Invalid message from master!");
+                error("Invalid message from master!");
         }
 
         free(message.payload);
@@ -144,14 +145,14 @@ static void send_event_to_master(uint16_t len, uint8_t ep_addr, uint16_t flag) {
 }
 
 void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
-    assert(result == 0 || result == 4);
+    runtime_assert(result == 0 || result == 4);
     send_string_message("HCD XFER COMPLETE");
     if (level == 0) {
         /*
          * Setup packet is sent to device. Now need to read data.
          */
-        assert(xferred_bytes == 0);
-        assert(result == XFER_RESULT_SUCCESS);
+        runtime_assert(xferred_bytes == 0);
+        runtime_assert(result == XFER_RESULT_SUCCESS);
 
         level = 1;
         uint16_t buglen = (setup_packet.bmRequestType_bit.direction == 0) ? 64 : setup_packet.wLength;

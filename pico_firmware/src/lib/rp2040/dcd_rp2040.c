@@ -70,9 +70,9 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type) {
     ep->hw_data_buf = next_buffer_ptr;
     next_buffer_ptr += size;
 
-    assert(((uintptr_t) next_buffer_ptr & 0b111111u) == 0);
+    runtime_assert(((uintptr_t) next_buffer_ptr & 0b111111u) == 0);
     uint dpram_offset = hw_data_offset(ep->hw_data_buf);
-    assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
+    runtime_assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
 
     // Fill in endpoint control register with buffer offset
     uint32_t const reg = EP_CTRL_ENABLE_BITS | (transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
@@ -260,7 +260,7 @@ void dcd_rp2040_irq_new(void) {
     }
 
     if (status ^ handled) {
-        panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
+        error("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
     }
 }
 
@@ -275,7 +275,7 @@ void dcd_connect(uint8_t rhport) {
 }
 
 void dcd_init_new(uint8_t rhport) {
-    assert(rhport == 0);
+    runtime_assert(rhport == 0);
 
     // Reset hardware to default state
     rp2040_usb_init();
@@ -329,7 +329,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *req
 }
 
 bool dcd_edpt_open_new(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt) {
-    assert(rhport == 0);
+    runtime_assert(rhport == 0);
     hw_endpoint_init(desc_edpt->bEndpointAddress, desc_edpt->wMaxPacketSize.size, desc_edpt->bmAttributes.xfer);
     return true;
 }
@@ -342,7 +342,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
 }
 
 bool dcd_edpt_xfer_new(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
-    assert(rhport == 0);
+    runtime_assert(rhport == 0);
     if (ep_addr & 0x80) {
         debug_print(PRINT_REASON_USB_EXCHANGES, "Sending to host at 0x%x array of len %d:\n", ep_addr, total_bytes);
         debug_print_array(PRINT_REASON_USB_EXCHANGES, buffer, total_bytes);

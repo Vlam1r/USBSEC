@@ -204,6 +204,40 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     // Finally, write to buffer_control which will trigger the transfer
     // the next time the controller polls this dpram address
     hw_endpoint_buffer_control_set_value32(ep, val);
+
+    /*
+         uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
+    ep->remaining_len -= buflen;
+
+    uint32_t buf_ctrl = buflen | USB_BUF_CTRL_AVAIL;
+
+    // PID
+    buf_ctrl |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
+    ep->next_pid ^= 1u;
+
+    if (!ep->rx) {
+        // Copy data from user buffer to hw buffer
+        memcpy(ep->hw_data_buf + buf_id * 64, ep->user_buf, buflen);
+        debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
+        debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf + buf_id * 64, buflen);
+        debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
+        ep->user_buf += buflen;
+
+        // Mark as full
+        buf_ctrl |= USB_BUF_CTRL_FULL;
+    }
+
+    // Is this the last buffer? Only really matters for host mode. Will trigger
+    // the trans complete irq but also stop it polling. We only really care about
+    // trans complete for setup packets being sent
+    if (ep->remaining_len == 0) {
+        buf_ctrl |= USB_BUF_CTRL_LAST;
+    }
+
+    if (buf_id) buf_ctrl = buf_ctrl << 16;
+
+    return buf_ctrl;
+     */
 }
 
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len) {
@@ -248,7 +282,7 @@ void hw_endpoint_xfer_partial(struct hw_endpoint *ep, uint8_t *buffer, uint16_t 
             !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
 
     if (ep->remaining_len && !force_single) {
-        panic("");
+        error("");
         buf_ctrl |= prepare_ep_buffer(ep, 1);
 
 // Set endpoint control double buffered bit if needed
@@ -276,24 +310,25 @@ void hw_endpoint_xfer_partial(struct hw_endpoint *ep, uint8_t *buffer, uint16_t 
 }
 
 // sync endpoint buffer and return transferred bytes
-static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
+static uint16_t sync_ep_buffer(struct hw_endpoint *ep) {
     uint32_t buf_ctrl = hw_endpoint_buffer_control_get_value32(ep);
-    if (buf_id) buf_ctrl = buf_ctrl >> 16;
 
     uint16_t xferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
     if (!ep->rx) {
         // We are continuing a transfer here. If we are TX, we have successfully
         // sent some data can increase the length we have sent
-        assert(!(buf_ctrl & USB_BUF_CTRL_FULL));
+        runtime_assert(!(buf_ctrl & USB_BUF_CTRL_FULL));
 
         ep->xferred_len += xferred_bytes;
     } else {
         // If we have received some data, so can increase the length
         // we have received AFTER we have copied it to the user buffer at the appropriate offset
+
+        //runtime_assert(!(buf_ctrl & USB_BUF_CTRL_FULL));
         if (!(buf_ctrl & USB_BUF_CTRL_FULL)) {
-            debug_print(PRINT_REASON_DCD_BUFFER, "WARNING: ep %d %s is cracked\n", tu_edpt_number(ep->ep_addr),
-                        ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+            error("WARNING: ep %d %s cracked\n",
+                  tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
         }
 
         if (ep->user_buf == 0 && xferred_bytes > 0) {
@@ -303,12 +338,11 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id) {
             ep->user_buf = reserve_bugger;
             //panic("");
         }
-        debug_print(PRINT_REASON_PREAMBLE, "<<<<<<<<<<<<<<<<<<<<<<\n");
-        debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf + buf_id * 64, xferred_bytes);
-        debug_print(PRINT_REASON_PREAMBLE, "<<<<<<<<<<<<<<<<<<<<<<\n");
-        memcpy(ep->user_buf, ep->hw_data_buf + buf_id * 64, xferred_bytes);
-        debug_print(PRINT_REASON_DCD_BUFFER, "Received %d bytes on [0x%x]\n", xferred_bytes, ep->ep_addr);
-        //spi_send_blocking(ep->user_buf, xferred_bytes, USB_DATA | DEBUG_PRINT_AS_HEX);
+        //debug_print(PRINT_REASON_PREAMBLE, "<<<<<<<<<<<<<<<<<<<<<<\n");
+        //debug_print_array(PRINT_REASON_PREAMBLE, ep->hw_data_buf, xferred_bytes);
+        //debug_print(PRINT_REASON_PREAMBLE, "<<<<<<<<<<<<<<<<<<<<<<\n");
+        memcpy(ep->user_buf, ep->hw_data_buf, xferred_bytes);
+        //debug_print(PRINT_REASON_DCD_BUFFER, "Received %d bytes on [0x%x]\n", xferred_bytes, ep->ep_addr);
         ep->xferred_len += xferred_bytes;
         if (get_role() == SPI_ROLE_MASTER)
             ep->user_buf += xferred_bytes; //We can cpy in place on slave as we will always send to host
@@ -338,13 +372,13 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep) {
     }*/
 
     // always sync buffer 0
-    sync_ep_buffer(ep, 0);
+    sync_ep_buffer(ep);
 
     // sync buffer 1 if double buffered
     if ((*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS) {
 
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        panic("Double buffering unsupported");
+        error("Double buffering unsupported");
     }
 
     //spi_send_blocking(&len, 1, USB_DATA | DEBUG_PRINT_AS_HEX);
