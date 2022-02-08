@@ -204,40 +204,6 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep) {
     // Finally, write to buffer_control which will trigger the transfer
     // the next time the controller polls this dpram address
     hw_endpoint_buffer_control_set_value32(ep, val);
-
-    /*
-         uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
-    ep->remaining_len -= buflen;
-
-    uint32_t buf_ctrl = buflen | USB_BUF_CTRL_AVAIL;
-
-    // PID
-    buf_ctrl |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
-    ep->next_pid ^= 1u;
-
-    if (!ep->rx) {
-        // Copy data from user buffer to hw buffer
-        memcpy(ep->hw_data_buf + buf_id * 64, ep->user_buf, buflen);
-        debug_print(PRINT_REASON_CONTROLLER_RAW, ">>>>>>>>>>>>>>>>>>>>>>\n");
-        debug_print_array(PRINT_REASON_CONTROLLER_RAW, ep->hw_data_buf + buf_id * 64, buflen);
-        debug_print(PRINT_REASON_CONTROLLER_RAW, ">>>>>>>>>>>>>>>>>>>>>>\n");
-        ep->user_buf += buflen;
-
-        // Mark as full
-        buf_ctrl |= USB_BUF_CTRL_FULL;
-    }
-
-    // Is this the last buffer? Only really matters for host mode. Will trigger
-    // the trans complete irq but also stop it polling. We only really care about
-    // trans complete for setup packets being sent
-    if (ep->remaining_len == 0) {
-        buf_ctrl |= USB_BUF_CTRL_LAST;
-    }
-
-    if (buf_id) buf_ctrl = buf_ctrl << 16;
-
-    return buf_ctrl;
-     */
 }
 
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len) {

@@ -117,7 +117,7 @@ void register_driver_for_edpt(uint8_t edpt, uint8_t itf, uint8_t new_mps) {
             break;
         case 0x08:
             edpt_driver[idx(edpt)] = DRIVER_MASS_STORAGE;
-            if (edpt & 0x80)
+            if (~edpt & 0x80)
                 dcd_edpt_xfer_new(0, edpt, bugger, 64); // Query OUT edpt
             else {
                 other_edpt = edpt;

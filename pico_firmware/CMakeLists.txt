@@ -70,4 +70,4 @@ pico_add_extra_outputs(pico_firmware_master)
 pico_add_extra_outputs(pico_firmware_slave)
 
 target_compile_definitions(pico_firmware_master PUBLIC __IS_MASTER__)
-target_compile_definitions(pico_firmware_master PUBLIC __DEBUG_LEVEL__=3)
+target_compile_definitions(pico_firmware_master PUBLIC __DEBUG_LEVEL__=1)
