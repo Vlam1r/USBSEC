@@ -1,8 +1,6 @@
 #ifndef RP2040_COMMON_H_
 #define RP2040_COMMON_H_
 
-#include "common/tusb_common.h"
-
 #include "pico.h"
 #include "hardware/structs/usb.h"
 #include "hardware/irq.h"

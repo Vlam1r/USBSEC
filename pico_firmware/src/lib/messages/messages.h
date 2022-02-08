@@ -28,7 +28,6 @@ enum gpio_pin {
      * \description Slave ready to receive over SPI
      */
     GPIO_SLAVE_WAITING_PIN = 13,
-    GPIO_SYNC_DIR = 12,            // Master -> Slave: Data to send
     /**/
     GPIO_LED_PIN = 25                       // Onboard LED Control
 };
@@ -60,13 +59,13 @@ typedef struct {
 
 void messages_config(void);
 
-spi_role get_role(void);
-
 void enqueue_spi_message(spi_message_t *message);
 
 bool dequeue_spi_message(spi_message_t *message);
 
 void send_string_message(const char *string);
+
+void knock_on_slave_edpt(uint8_t edpt, uint8_t len);
 
 void sync(void);
 

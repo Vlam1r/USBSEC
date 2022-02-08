@@ -82,7 +82,7 @@ extern hw_endpoint_t *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr);
 
 bool hcd_init(uint8_t rhport);
 
-bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc);
+bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc, uint8_t dev_addr);
 
 // Call to send data
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer /* user_buf*/, uint16_t total_len);

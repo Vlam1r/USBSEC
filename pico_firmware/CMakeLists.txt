@@ -29,7 +29,8 @@ add_executable(pico_firmware_master
         src/lib/usb_event_handlers/host_event_handlers.c
         src/lib/debug/debug.c
         src/lib/messages/spi_data.c
-        src/lib/setup_response_aggregator/setup_response_aggregator.c)
+        src/lib/setup_response_aggregator/setup_response_aggregator.c
+        src/lib/drivers/drivers.c)
 
 add_executable(pico_firmware_slave
         src/main.c
@@ -41,7 +42,8 @@ add_executable(pico_firmware_slave
         src/lib/usb_event_handlers/host_event_handlers.c
         src/lib/debug/debug.c
         src/lib/messages/spi_data.c
-        src/lib/setup_response_aggregator/setup_response_aggregator.c)
+        src/lib/setup_response_aggregator/setup_response_aggregator.c
+        src/lib/drivers/drivers.c)
 
 target_link_libraries(pico_firmware_master
         pico_stdlib
@@ -68,4 +70,4 @@ pico_add_extra_outputs(pico_firmware_master)
 pico_add_extra_outputs(pico_firmware_slave)
 
 target_compile_definitions(pico_firmware_master PUBLIC __IS_MASTER__)
-target_compile_definitions(pico_firmware_master PUBLIC __DEBUG_LEVEL__=1)
+target_compile_definitions(pico_firmware_master PUBLIC __DEBUG_LEVEL__=3)

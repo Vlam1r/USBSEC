@@ -34,12 +34,6 @@ static inline void init_gpio_pin(uint pin, int in_role) {
 ///
 void messages_config(void) {
 
-    // Setup debug IO over UART
-    //
-    if (get_role() == SPI_ROLE_MASTER) {
-        stdio_uart_init();
-    }
-
     // Setup IO pins
     //
     init_gpio_pin(GPIO_SYNC, SPI_ROLE_SLAVE);
@@ -152,7 +146,7 @@ static uint16_t recieve_message(uint8_t *data) {
 }
 
 void enqueue_spi_message(spi_message_t *message) {
-    //queue_add_with_copy(&tx, message);
+    queue_add_with_copy(&tx, message);
 }
 
 bool dequeue_spi_message(spi_message_t *message) {
@@ -165,8 +159,23 @@ void send_string_message(const char *string) {
             .payload_length = strlen(string) + 1,
             .e_flag = DEBUG_PRINT_AS_STRING
     };
-    //enqueue_spi_message(&msg);
+    enqueue_spi_message(&msg);
 }
+
+void knock_on_slave_edpt(uint8_t edpt, uint8_t len) {
+    runtime_assert(get_role() == SPI_ROLE_MASTER);
+    //TODO FIX SENDING OF BYTES
+    memset(bugger, 0, len);
+    bugger[len] = edpt;
+    spi_message_t reply = {
+            .payload = bugger,
+            .payload_length = len + 1,
+            .e_flag = USB_DATA | DEBUG_PRINT_AS_HEX
+    };
+    debug_print_array(PRINT_REASON_XFER_COMPLETE, bugger, len + 1);
+    enqueue_spi_message(&reply); // TODO Optimize sending of empty bits
+}
+
 
 void sync(void) {
     spi_message_t msg;

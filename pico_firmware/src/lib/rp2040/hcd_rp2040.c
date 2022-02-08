@@ -372,14 +372,14 @@ void hcd_int_disable(uint8_t rhport) {
 // Endpoint API
 //--------------------------------------------------------------------+
 
-bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc) {
+bool hcd_edpt_open(tusb_desc_endpoint_t const *ep_desc, uint8_t dev_addr) {
 
     // Allocated differently based on if it's an interrupt endpoint or not
     struct hw_endpoint *ep = _hw_endpoint_allocate(ep_desc->bmAttributes.xfer, ep_desc->bEndpointAddress);
     runtime_assert(ep);
 
     _hw_endpoint_init(ep,
-                      0, //unused
+                      dev_addr,
                       ep_desc->bEndpointAddress,
                       ep_desc->wMaxPacketSize.size,
                       ep_desc->bmAttributes.xfer,
@@ -435,9 +435,9 @@ void hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     (void) rhport;
 
 
-    debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
-    debug_print_array(PRINT_REASON_PREAMBLE, setup_packet, 8);
-    debug_print(PRINT_REASON_PREAMBLE, ">>>>>>>>>>>>>>>>>>>>>>\n");
+    debug_print(PRINT_REASON_CONTROLLER_RAW, ">>>>>>>>>>>>>>>>>>>>>>\n");
+    debug_print_array(PRINT_REASON_CONTROLLER_RAW, setup_packet, 8);
+    debug_print(PRINT_REASON_CONTROLLER_RAW, ">>>>>>>>>>>>>>>>>>>>>>\n");
     // Copy data into setup packet buffer
     memcpy((void *) &usbh_dpram->setup_packet[0], setup_packet, 8);
 

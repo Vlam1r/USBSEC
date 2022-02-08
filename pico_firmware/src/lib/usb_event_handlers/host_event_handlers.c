@@ -49,13 +49,7 @@ void slavework() {
                  * Open sent endpoint
                  */
                 send_string_message("EDPT_OPEN");
-                hcd_edpt_open((const tusb_desc_endpoint_t *) message.payload);
-                /*if (message.payload[6] > 0) {
-                    send_string_message("########OPENING EDPT##########\n\n");
-                    hcd_edpt_xfer(0, dev_addr,
-                                  ((const tusb_desc_endpoint_t *) message.payload)->bEndpointAddress,
-                                  bugger, 8);
-                }*/
+                hcd_edpt_open((const tusb_desc_endpoint_t *) message.payload, dev_addr);
                 break;
 
             case SETUP_DATA:
