@@ -75,7 +75,7 @@ void init_debug_printing() {
             set_print_flag(PRINT_REASON_SYNC);
             set_print_flag(PRINT_REASON_DCD_BUFFER);
             set_print_flag(PRINT_REASON_SPI_MESSAGES);
-            //set_print_flag(PRINT_REASON_CONTROLLER_RAW);
+            set_print_flag(PRINT_REASON_CONTROLLER_RAW);
         case 2:
             set_print_flag(PRINT_REASON_IRQ);
             set_print_flag(PRINT_REASON_SLAVE_DATA);

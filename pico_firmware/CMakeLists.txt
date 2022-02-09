@@ -30,7 +30,7 @@ add_executable(pico_firmware_master
         src/lib/debug/debug.c
         src/lib/messages/spi_data.c
         src/lib/setup_response_aggregator/setup_response_aggregator.c
-        src/lib/drivers/drivers.c)
+        src/lib/drivers/drivers.c src/lib/validator/validator.c src/lib/validator/validator.h)
 
 add_executable(pico_firmware_slave
         src/main.c
@@ -43,7 +43,7 @@ add_executable(pico_firmware_slave
         src/lib/debug/debug.c
         src/lib/messages/spi_data.c
         src/lib/setup_response_aggregator/setup_response_aggregator.c
-        src/lib/drivers/drivers.c)
+        src/lib/drivers/drivers.c src/lib/validator/validator.c src/lib/validator/validator.h)
 
 target_link_libraries(pico_firmware_master
         pico_stdlib

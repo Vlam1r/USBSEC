@@ -46,6 +46,8 @@ int main() {
     gpio_set_dir(6, GPIO_OUT);
     gpio_init(5);
     gpio_set_dir(5, GPIO_OUT);
+    gpio_init(4);
+    gpio_set_dir(4, GPIO_IN);
 
     init_debug_printing();
     messages_config();

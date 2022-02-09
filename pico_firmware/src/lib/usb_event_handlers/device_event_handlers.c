@@ -9,6 +9,7 @@
 #include "../debug/debug.h"
 #include "../setup_response_aggregator/setup_response_aggregator.h"
 #include "../drivers/drivers.h"
+#include "../validator/validator.h"
 
 static uint8_t bMaxPacketSize = 64;
 static tusb_control_request_t setup;
@@ -110,6 +111,12 @@ void dcd_event_setup_received_new(uint8_t rhport, uint8_t const *p_setup, bool i
         return;
     }
 
+    if (setup.bmRequestType == 0x21 && setup.bRequest == 0x9) {
+        printf("!!!!!!!!!!!!REPORT!!!!!!!!!!!!!!\n");
+        dcd_edpt_xfer_new(0, 0x00, 0, 0);
+        return;
+    }
+
     /*
      * Forward setup packet to slave and get response from device
      */
@@ -188,18 +195,21 @@ static void handle_setup_response() {
 
     if (setup.bRequest == 0x09 /* SET CONFIG */) {
         debug_print(PRINT_REASON_SETUP_REACTION, "Configuration confirmed.\n");
+        /*
+         * Validation
+         */
+        validate_driver_config();
     }
 
     /*
      * Setting up interrupt finished. Need to request a read
      */
-    if (setup.wValue == 0x2200 /* REQUEST HID REPORT*/ && setup.wIndex == 0x01) {
+    if (setup.wValue == 0x2200 /* REQUEST HID REPORT*/) {
         send_empty_message();
-        knock_on_slave_edpt(setup.wIndex + 0x80, bMaxPacketSize);
+        knock_on_slave_edpt(setup.wIndex + 0x81, 9); // todo
     }
 
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Setup handling ended.\n");
-
 }
 
 void dcd_event_xfer_complete_new(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr) {

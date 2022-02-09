@@ -31,7 +31,7 @@ void define_setup_packet(uint8_t *setup) {
 
 void slavework() {
     spi_message_t message;
-    if (debug_lock) return;
+    //if (debug_lock) return;
     if (dequeue_spi_message(&message)) {
         switch (message.e_flag & ~DEBUG_PRINT_AS_HEX) {
 
@@ -68,7 +68,6 @@ void slavework() {
                  * Data is copied into buffer
                  */
                 level = 3;
-                //debug_lock = true;
                 send_string_message("USB_DATA");
                 memcpy(bugger, message.payload, message.payload_length - 1);
                 hcd_edpt_xfer(0,
@@ -141,35 +140,41 @@ static void send_event_to_master(uint16_t len, uint8_t ep_addr, uint16_t flag) {
 void hcd_event_xfer_complete(uint8_t dev_addr_curr, uint8_t ep_addr, uint32_t xferred_bytes, int result, bool in_isr) {
     runtime_assert(result == 0 || result == 4);
     send_string_message("HCD XFER COMPLETE");
-    if (level == 0) {
-        /*
-         * Setup packet is sent to device. Now need to read data.
-         */
-        runtime_assert(xferred_bytes == 0);
-        runtime_assert(result == XFER_RESULT_SUCCESS);
 
-        level = 1;
-        uint16_t buglen = (setup_packet.bmRequestType_bit.direction == 0) ? 64 : setup_packet.wLength;
-        hcd_edpt_xfer(0, dev_addr_curr, 0x80, bugger, buglen);
-    } else if (level == 1) {
+    if ((ep_addr & 0x7F) == 0) {
         /*
-         * Setup response data received.
+         * ep_addr is 0x00 or 0x80 and we are handling setup
          */
-        uint16_t last = 0;
-        if (result == XFER_RESULT_SUCCESS) {
-            level = 2;
-            last = LAST_PACKET;
-            debug_lock = false;
-            if (setup_packet.bmRequestType_bit.direction == 1) {
-                hcd_edpt_xfer(0, dev_addr_curr, 0x00, NULL, 0); // Request ACK
-            }
-        } else {
+        if (level == 0) {
+            /*
+             * Setup packet is sent to device. Now need to read data.
+             */
+            runtime_assert(xferred_bytes == 0);
+            runtime_assert(result == XFER_RESULT_SUCCESS);
+
+            level = 1;
             uint16_t buglen = (setup_packet.bmRequestType_bit.direction == 0) ? 64 : setup_packet.wLength;
             hcd_edpt_xfer(0, dev_addr_curr, 0x80, bugger, buglen);
+        } else if (level == 1) {
+            /*
+             * Setup response data received.
+             */
+            uint16_t last = 0;
+            if (result == XFER_RESULT_SUCCESS) {
+                level = 2;
+                last = LAST_PACKET;
+                debug_lock = false;
+                if (setup_packet.bmRequestType_bit.direction == 1) {
+                    hcd_edpt_xfer(0, dev_addr_curr, 0x00, NULL, 0); // Request ACK
+                }
+            } else {
+                uint16_t buglen = (setup_packet.bmRequestType_bit.direction == 0) ? 64 : setup_packet.wLength;
+                hcd_edpt_xfer(0, dev_addr_curr, 0x80, bugger, buglen);
+            }
+            send_event_to_master(xferred_bytes, ep_addr, last | SETUP_DATA);
+        } else if (level == 2) {
+            // Ack sent
         }
-        send_event_to_master(xferred_bytes, ep_addr, last | SETUP_DATA);
-    } else if (level == 2) {
-        // Ack sent
     } else {
         /*
          * Non-control transfer
