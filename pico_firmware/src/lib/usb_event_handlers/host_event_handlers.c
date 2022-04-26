@@ -102,7 +102,6 @@ void slavework() {
             case 0:
                 break;
             default:
-                gpio_put(GPIO_LED_PIN, 1);
                 error("Invalid message from master!");
         }
 

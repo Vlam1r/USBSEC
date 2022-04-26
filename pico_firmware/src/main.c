@@ -7,6 +7,7 @@
 #include "lib/rp2040/rp2040_usb.h"
 #include "lib/debug/debug.h"
 #include "pico/multicore.h"
+#include "lib/direction_ctrl/direction_ctrl.h"
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "EndlessLoop"
@@ -63,5 +64,14 @@ int main() {
     multicore_launch_core1(core1_loop);
     //fake_spi();
     core0_loop();
+
+    /*while (true) {
+        set_dir(true);
+        gpio_put(GPIO_LED_PIN, 1);
+        sleep_ms(1000);
+        set_dir(false);
+        gpio_put(GPIO_LED_PIN, 0);
+        sleep_ms(1000);
+    }*/
 }
 

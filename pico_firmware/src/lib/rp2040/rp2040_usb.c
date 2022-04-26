@@ -299,7 +299,7 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep) {
 
         if (ep->user_buf == 0 && xferred_bytes > 0) {
             send_string_message("WHAT IS GOING ON?");
-            gpio_put(GPIO_LED_PIN, 1);
+            //gpio_put(GPIO_LED_PIN, 1);
             ep->active = true;
             ep->user_buf = reserve_bugger;
             //panic("");
