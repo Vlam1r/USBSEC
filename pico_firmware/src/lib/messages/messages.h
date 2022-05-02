@@ -19,15 +19,10 @@ enum gpio_pin {
      */
     GPIO_SLAVE_DEVICE_ATTACHED_PIN = 15,
     /**
-     * \set_by Master
-     * \description Initiate syncing
-     */
-    GPIO_SYNC = 14,
-    /**
      * \set_by Slave
      * \description Slave ready to receive over SPI
      */
-    GPIO_SLAVE_WAITING_PIN = 13,
+    GPIO_SLAVE_WAITING_PIN = 14,
     /**/
     GPIO_LED_PIN = 25                       // Onboard LED Control
 };

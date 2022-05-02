@@ -48,10 +48,14 @@ int main() {
     gpio_init(5);
     gpio_set_dir(5, GPIO_OUT);
     gpio_init(4);
-    gpio_set_dir(4, GPIO_IN);
+    gpio_set_dir(4, GPIO_OUT);
 
     init_debug_printing();
     messages_config();
+    /*set_dir(true);
+    gpio_init(2);
+    gpio_set_dir(2, GPIO_OUT);
+    gpio_put(2, true);*/
 
     if (get_role() == SPI_ROLE_MASTER) {
         // Master is device

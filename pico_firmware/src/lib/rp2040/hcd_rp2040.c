@@ -441,7 +441,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 void hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]) {
     (void) rhport;
 
-    set_dir(true);
+    set_dir(false);
 
     debug_print(PRINT_REASON_CONTROLLER_RAW, ">>>>>>>>>>>>>>>>>>>>>>\n");
     debug_print_array(PRINT_REASON_CONTROLLER_RAW, setup_packet, 8);

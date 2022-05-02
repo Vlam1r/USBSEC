@@ -14,7 +14,7 @@ bool inited = false;
 
 
 void set_dir(bool in) {
-    return;
+    //return;
     if (!inited) {
         gpio_init(IN_PIN);
         gpio_init(OUT_PIN);

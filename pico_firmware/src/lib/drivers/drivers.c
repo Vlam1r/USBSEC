@@ -94,7 +94,6 @@ void hid_spi(spi_message_t *message, uint8_t edpt) {
 }
 
 void hid_xfer(uint8_t edpt, uint32_t xferred_bytes, uint8_t result) {
-    printf("XFER COMPLETE MUAHAHAHA");
     knock_on_slave_edpt(edpt, 9);
 }
 
@@ -114,7 +113,7 @@ void register_driver_for_edpt(uint8_t edpt, uint8_t itf, uint8_t new_mps) {
 
     bMaxPacketSize = new_mps;
 
-    bool allow_hid = false;
+    bool allow_hid = true;
 
 
     switch (itf) {

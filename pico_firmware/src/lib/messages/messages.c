@@ -36,7 +36,6 @@ void messages_config(void) {
 
     // Setup IO pins
     //
-    init_gpio_pin(GPIO_SYNC, SPI_ROLE_SLAVE);
     init_gpio_pin(GPIO_SLAVE_WAITING_PIN, SPI_ROLE_MASTER);
     init_gpio_pin(GPIO_SLAVE_DEVICE_ATTACHED_PIN, SPI_ROLE_MASTER);
     //init_gpio_pin(GPIO_SYNC_DIR, SPI_ROLE_SLAVE);
@@ -159,7 +158,7 @@ void send_string_message(const char *string) {
             .payload_length = strlen(string) + 1,
             .e_flag = DEBUG_PRINT_AS_STRING
     };
-    enqueue_spi_message(&msg);
+    //enqueue_spi_message(&msg);
 }
 
 void knock_on_slave_edpt(uint8_t edpt, uint8_t len) {
