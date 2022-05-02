@@ -7,18 +7,10 @@
 #include "drivers.h"
 
 #include "../debug/debug.h"
-#include "../usb_event_handlers/usb_event_handlers.h"
-
-typedef enum {
-    DRIVER_ILLEGAL,
-    DRIVER_MSC,
-    DRIVER_HID,
-    DRIVER_CDC,
-    DRIVER_CDCDATA,
-    DRIVER_AUDIO
-} driver_t;
+#include "../validator/validator.h"
 
 static driver_t edpt_driver[32];
+static tusb_desc_interface_t itf_copy[32];
 
 static bool permit_0x81 = false;
 static int count0x81 = 0;
@@ -94,7 +86,7 @@ void hid_spi(spi_message_t *message, uint8_t edpt) {
 }
 
 void hid_xfer(uint8_t edpt, uint32_t xferred_bytes, uint8_t result) {
-    knock_on_slave_edpt(edpt, 9);
+    knock_on_slave_edpt(edpt, bMaxPacketSize);
 }
 
 /*
@@ -109,43 +101,36 @@ static uint8_t idx(uint8_t edpt) {
     return edpt;
 }
 
-void register_driver_for_edpt(uint8_t edpt, uint8_t itf, uint8_t new_mps) {
+void register_driver_for_edpt(const tusb_desc_endpoint_t *const edpt, const tusb_desc_interface_t *const itf,
+                              uint8_t new_mps) {
 
     bMaxPacketSize = new_mps;
+    uint8_t ep_addr = edpt->bEndpointAddress;
+    memcpy(&itf_copy[idx(ep_addr)], itf, sizeof(tusb_desc_interface_t));
 
-    bool allow_hid = true;
-
-
-    switch (itf) {
-        case 0x02:
-            edpt_driver[idx(edpt)] = DRIVER_CDC;
-            break;
-        case 0x0a:
-            edpt_driver[idx(edpt)] = DRIVER_CDCDATA;
-            break;
+    switch (itf->bInterfaceClass) {
         case 0x03:
-            edpt_driver[idx(edpt)] = DRIVER_HID;
-            if (!allow_hid) {
-                error("~~~~~~~~~~~~~~~~\n~~~~~BANNED~~~~~\n~~~~~~~~~~~~~~~~");
-            }
+            edpt_driver[idx(ep_addr)] = DRIVER_HID;
             break;
         case 0x08:
-            edpt_driver[idx(edpt)] = DRIVER_MSC;
-            if (~edpt & 0x80)
-                dcd_edpt_xfer_new(0, edpt, bugger, 64); // Query OUT edpt
+            edpt_driver[idx(ep_addr)] = DRIVER_MASS_STORAGE;
+            if (~ep_addr & 0x80)
+                dcd_edpt_xfer_new(0, ep_addr, bugger, 64); // Query OUT edpt
             else {
-                other_edpt = edpt;
+                other_edpt = ep_addr;
             }
             break;
         default:
-            break; //todo? audio
-            error("Invalid interface number 0x%x", itf);
+            error("Invalid interface number 0x%x", itf->bInterfaceClass);
     }
 }
 
 void handle_spi_slave_event_with_driver(spi_message_t *message, uint8_t edpt) {
+
+    check_comm(&itf_copy[idx(edpt)]);
+
     switch (edpt_driver[idx(edpt)]) {
-        case DRIVER_MSC:
+        case DRIVER_MASS_STORAGE:
             msc_spi(message, edpt);
             break;
         case DRIVER_HID:
@@ -158,7 +143,7 @@ void handle_spi_slave_event_with_driver(spi_message_t *message, uint8_t edpt) {
 
 void handle_device_xfer_complete_with_driver(uint8_t edpt, uint32_t xferred_bytes, uint8_t result) {
     switch (edpt_driver[idx(edpt)]) {
-        case DRIVER_MSC:
+        case DRIVER_MASS_STORAGE:
             msc_xfer(edpt, xferred_bytes, result);
             break;
         case DRIVER_HID:

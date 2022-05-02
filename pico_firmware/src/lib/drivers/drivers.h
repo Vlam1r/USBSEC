@@ -9,8 +9,15 @@
 
 #include <pico.h>
 #include "../messages/messages.h"
+#include "../usb_event_handlers/usb_event_handlers.h"
 
-void register_driver_for_edpt(uint8_t edpt, uint8_t itf, uint8_t bMaxPacketSize);
+typedef enum {
+    DRIVER_ILLEGAL,
+    DRIVER_MASS_STORAGE,
+    DRIVER_HID
+} driver_t;
+
+void register_driver_for_edpt(const tusb_desc_endpoint_t *edpt, const tusb_desc_interface_t *itf, uint8_t new_mps);
 
 void handle_spi_slave_event_with_driver(spi_message_t *message, uint8_t edpt);
 

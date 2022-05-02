@@ -161,14 +161,15 @@ static void handle_setup_response() {
     if (setup.wValue == 0x0200 && setup.wLength > 9) {
         debug_print(PRINT_REASON_SETUP_REACTION, "Started handling endpoints.\n");
         int pos = 0;
-        uint8_t itf = 0;
+        const tusb_desc_interface_t *itf = NULL;
         while (pos < len) {
             debug_print(PRINT_REASON_SETUP_REACTION, "+--\n|Len %d\n|Type 0x%x\n+--", arr[pos], arr[pos + 1]);
+
             if (arr[pos + 1] == 0x04) {
                 /*
                  * INTERFACE DESCRIPTOR
                  */
-                itf = arr[pos + 5]; // todo maybe parse properly
+                itf = (const tusb_desc_interface_t *) &arr[pos];
             }
 
             if (arr[pos + 1] == 0x05) {
@@ -179,7 +180,7 @@ static void handle_setup_response() {
                 dcd_edpt_open_new(0, edpt);
                 // Start read
                 debug_print(PRINT_REASON_SETUP_REACTION, "New endpoint registered: 0x%x\n", edpt->bEndpointAddress);
-                register_driver_for_edpt(edpt->bEndpointAddress, itf, bMaxPacketSize);
+                register_driver_for_edpt(edpt, itf, bMaxPacketSize);
 
                 spi_message_t reply = {
                         .payload = (uint8_t *) edpt,
@@ -205,8 +206,13 @@ static void handle_setup_response() {
      * Setting up interrupt finished. Need to request a read
      */
     if (setup.wValue == 0x2200 /* REQUEST HID REPORT*/) {
+        //send_empty_message();
+        //knock_on_slave_edpt(setup.wIndex + 0x81, 9); // todo
+    }
+
+    if (setup.wValue == 0x2200 /* REQUEST HID REPORT*/ && setup.wIndex == 0x01) {
         send_empty_message();
-        knock_on_slave_edpt(setup.wIndex + 0x81, 9); // todo
+        knock_on_slave_edpt(setup.wIndex + 0x80, bMaxPacketSize);
     }
 
     debug_print(PRINT_REASON_SETUP_REACTION, "[SETUP] Setup handling ended.\n");
