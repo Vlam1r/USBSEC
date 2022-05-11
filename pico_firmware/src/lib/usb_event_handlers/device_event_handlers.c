@@ -25,15 +25,6 @@ static enum {
 
 static void handle_setup_response();
 
-static void send_empty_message() {
-    static const spi_message_t dummy = {
-            .payload = NULL,
-            .payload_length = 0,
-            .e_flag = 0
-    };
-    //enqueue_spi_message(&dummy);
-}
-
 void handle_spi_slave_event(void) {
     if (setup_response_dir == WRITING_RESPONSE) {
         /*
@@ -187,7 +178,6 @@ static void handle_setup_response() {
                         .payload_length = edpt->bLength,
                         .e_flag = EDPT_OPEN | DEBUG_PRINT_AS_HEX
                 };
-                //send_empty_message();
                 enqueue_spi_message(&reply);
             }
             pos += arr[pos];
@@ -206,12 +196,10 @@ static void handle_setup_response() {
      * Setting up interrupt finished. Need to request a read
      */
     if (setup.wValue == 0x2200 /* REQUEST HID REPORT*/) {
-        //send_empty_message();
         //knock_on_slave_edpt(setup.wIndex + 0x81, 9); // todo
     }
 
     if (setup.wValue == 0x2200 /* REQUEST HID REPORT*/ && setup.wIndex == 0x01) {
-        send_empty_message();
         knock_on_slave_edpt(setup.wIndex + 0x80, bMaxPacketSize);
     }
 
